@@ -137,7 +137,7 @@ const state = {
       nextLocation: 'Malatya Bölge Deposu',
       estimatedDelivery: '20.11.2024',
       lastUpdate: '09.11.2024 12:35',
-      finalDestination: 'Malatya Bölge Deposu',
+       finalDestination: 'Malatya Bölge Deposu',
       statusHistory: [
         { timestamp: '09.11.2024 12:10', note: 'İstanbul Şirin: Metal raf sistemleri paketlendi.' }
       ],
