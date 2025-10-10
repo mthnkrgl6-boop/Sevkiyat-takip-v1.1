@@ -52,6 +52,7 @@ const state = {
       nextLocation: 'Aksaray Merkez Fabrika',
       estimatedDelivery: '15.12.2024',
       lastUpdate: '09.11.2024 14:40',
+      finalDestination: 'Hatay Çekmece Konut Projesi Şantiyesi',
       statusHistory: [
         { timestamp: '09.11.2024 10:15', note: 'İstanbul Şirin: Metal ürünler üretimden çıktı.' },
         { timestamp: '09.11.2024 14:40', note: 'Metal hat sevkiyatı İstanbul Şirin fabrikadan yola çıktı.' }
@@ -100,6 +101,7 @@ const state = {
       nextLocation: 'Ankara Bölge Müdürlüğü Deposu',
       estimatedDelivery: '18.12.2024',
       lastUpdate: '05.12.2024 09:45',
+      finalDestination: 'Ankara Bölge Müdürlüğü Deposu',
       statusHistory: [
         { timestamp: '05.12.2024 08:40', note: 'Aksaray Merkez: PPRC borular sevkiyat planına alındı.' },
         { timestamp: '05.12.2024 09:45', note: 'Çıkış hazırlıkları tamamlanıyor.' }
@@ -135,6 +137,7 @@ const state = {
       nextLocation: 'Malatya Bölge Deposu',
       estimatedDelivery: '20.11.2024',
       lastUpdate: '09.11.2024 12:35',
+       finalDestination: 'Malatya Bölge Deposu',
       statusHistory: [
         { timestamp: '09.11.2024 12:10', note: 'İstanbul Şirin: Metal raf sistemleri paketlendi.' }
       ],
@@ -341,13 +344,26 @@ function renderOrderDetail() {
   fragment.querySelector('[data-field="nextLocation"]').textContent = order.nextLocation || '-';
   fragment.querySelector('[data-field="estimatedDelivery"]').textContent = order.estimatedDelivery || '-';
 
+  const finalStop = order.finalDestination || order.stages[order.stages.length - 1]?.to || order.nextLocation || '-';
+
   const mapFigure = fragment.querySelector('[data-field="map"]');
   if (mapFigure) {
     mapFigure.innerHTML = `
-      <div class="muted" style="padding: 16px;">
-        ${(order.currentLocation || 'Kaynak')} → ${(order.nextLocation || 'Hedef')} rotası izleniyor.
+      <img
+        src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png"
+        alt="Türkiye iller haritası"
+        class="map-image"
+      />
+      <div class="map-overlay">
+        <strong>${finalStop}</strong>
+        <span>${order.currentLocation || 'Kaynak'} çıkışlı sevkiyat</span>
       </div>
     `;
+  }
+
+  const finalDestinationField = fragment.querySelector('[data-field="finalDestination"]');
+  if (finalDestinationField) {
+    finalDestinationField.textContent = finalStop;
   }
 
   const currentLocationInput = fragment.querySelector('[data-field="currentLocationInput"]');
@@ -925,6 +941,7 @@ function addOrderFromForm(formData) {
     nextLocation: consolidationFactory ? consolidationFactory.name : finalDestination,
     estimatedDelivery: estimatedDelivery || '- Tahmini bekleniyor -',
     lastUpdate: orderDate,
+    finalDestination: finalDestination || '-',
     statusHistory: [],
     products: [],
     stages: []
@@ -1115,6 +1132,10 @@ function addHistory(order, note) {
 
 function updateOrderFlow(order) {
   const nextStageIndex = order.stages.findIndex((stage) => !stage.completed);
+  const lastStage = order.stages[order.stages.length - 1];
+  if (lastStage?.to) {
+    order.finalDestination = lastStage.to;
+  }
   if (nextStageIndex === -1) {
     order.currentLocation = order.stages[order.stages.length - 1]?.to ?? order.currentLocation;
     order.nextLocation = 'Sipariş teslim edildi';

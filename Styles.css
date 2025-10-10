@@ -339,19 +339,42 @@ body {
 }
 
 .map-figure {
-  min-height: 180px;
-  background: linear-gradient(135deg, #fde3c2 0%, #f9cfa3 100%);
+  min-height: 220px;
+  background: #fff;
   border-radius: 16px;
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
 }
 
-.map-figure::before {
-  content: '';
+.map-image {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.map-overlay {
   position: absolute;
-  inset: 20px;
-  background: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 256" fill="none" stroke="%23c3721f" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M16 156c32-34 116-86 192-86 99 0 152 64 224 70 40 4 64-22 64-22"/%3E%3Cpath d="M88 118c20 18 44 38 76 38 60 0 94-62 168-62 54 0 74 32 126 38" opacity=".55"/%3E%3C/svg%3E') center/cover no-repeat;
-  filter: saturate(0.9);
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+  color: var(--accent-dark);
+  font-size: 13px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.map-overlay strong {
+  font-size: 14px;
 }
 
 .map-details p {
@@ -459,10 +482,11 @@ body {
   inset: 0;
   background: rgba(34, 32, 28, 0.35);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 32px;
   z-index: 50;
+  overflow-y: auto;
 }
 
 .modal.hidden {
@@ -475,6 +499,9 @@ body {
   padding: 24px;
   max-width: 520px;
   width: 100%;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  margin: 40px auto;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
@@ -532,6 +559,17 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .modal {
+    padding: 16px;
+  }
+
+  .modal-content {
+    margin: 24px auto;
+    max-height: calc(100vh - 48px);
+  }
 }
 
 @media (max-width: 1200px) {
