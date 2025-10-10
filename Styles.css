@@ -62,15 +62,25 @@ body {
 
 .user-area {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-end;
+  gap: 16px;
   font-weight: 600;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.user-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .user-label {
-  font-size: 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
 }
 
+.user-select,
 .warehouse-select {
   border: none;
   border-radius: 14px;
@@ -82,9 +92,27 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
+.role-badge {
+  background: rgba(255, 255, 255, 0.22);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.user-area .btn.small {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: none;
+}
+
 .app-content {
   flex: 1;
   padding: 32px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .tab-view {
@@ -165,6 +193,14 @@ body {
 .btn.small {
   padding: 6px 12px;
   font-size: 12px;
+}
+
+.btn:disabled,
+.btn:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn:hover {
@@ -436,6 +472,22 @@ body {
   gap: 12px;
 }
 
+.hat-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.hat-subsection-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .hat-card {
   background: #fff7ec;
   border-radius: 16px;
@@ -455,6 +507,16 @@ body {
 
 .hat-card strong {
   color: var(--accent-dark);
+}
+
+.hat-card.delivered {
+  background: #ecf8f2;
+  box-shadow: inset 0 0 0 1px rgba(66, 140, 103, 0.25);
+}
+
+.hat-card.delivered .badge {
+  background: rgba(66, 140, 103, 0.2);
+  color: #2f6b4c;
 }
 
 .hat-card-actions {
@@ -527,6 +589,101 @@ body {
   gap: 16px;
 }
 
+.form-section {
+  background: #fff4e6;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-form-section {
+  margin: 4px 0 8px;
+}
+
+.form-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-section-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--accent-dark);
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.product-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.product-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.product-row-fields {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) 110px minmax(140px, 1fr);
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+}
+
+.product-row select,
+.product-row input[type='number'] {
+  width: 100%;
+}
+
+.product-origin {
+  font-size: 13px;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.icon-btn.remove {
+  background: #fff0df;
+  box-shadow: inset 0 0 0 1px rgba(216, 137, 60, 0.35);
+}
+
+.icon-btn.remove:hover {
+  background: #ffe1c2;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.form-grid.role-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -569,6 +726,15 @@ textarea {
   .modal-content {
     margin: 24px auto;
     max-height: calc(100vh - 48px);
+  }
+
+  .product-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .product-row-fields {
+    grid-template-columns: 1fr;
   }
 }
 

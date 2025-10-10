@@ -1,3 +1,18 @@
+const roleDefinitions = {
+  'satis-operasyon': {
+    name: 'Satış Operasyon',
+    permissions: { addOrder: true, manageRoles: false }
+  },
+  'ambar-sorumlusu': {
+    name: 'Ambar Sorumlusu',
+    permissions: { addOrder: false, manageRoles: false }
+  },
+  yonetici: {
+    name: 'Yönetici',
+    permissions: { addOrder: false, manageRoles: true }
+  }
+};
+
 const stageStatuses = ['Bekliyor', 'Hazırlanıyor', 'Yolda', 'Tamamlandı'];
 
 const factories = [
@@ -38,8 +53,16 @@ const factories = [
   }
 ];
 
+const users = [
+  { id: 'user-1', name: 'Ayşe Kurt', roleId: 'satis-operasyon', warehouse: 'İstanbul Şirin Fabrika' },
+  { id: 'user-2', name: 'Burak Aslan', roleId: 'ambar-sorumlusu', warehouse: 'Aksaray Merkez Fabrika' },
+  { id: 'user-3', name: 'Derya Çetin', roleId: 'yonetici', warehouse: 'Aksaray Merkez Fabrika' }
+];
+
 const state = {
   factories,
+  users,
+  activeUserId: users[0].id,
   orders: [
     {
       id: 'ORD-HTY-235664',
@@ -137,7 +160,7 @@ const state = {
       nextLocation: 'Malatya Bölge Deposu',
       estimatedDelivery: '20.11.2024',
       lastUpdate: '09.11.2024 12:35',
-       finalDestination: 'Malatya Bölge Deposu',
+      finalDestination: 'Malatya Bölge Deposu',
       statusHistory: [
         { timestamp: '09.11.2024 12:10', note: 'İstanbul Şirin: Metal raf sistemleri paketlendi.' }
       ],
@@ -205,7 +228,8 @@ const state = {
   ],
   activeTab: 'siparisler',
   activeOrderId: null,
-  activeWarehouse: factories.find((factory) => factory.id === 'aksaray-merkez').name,
+  activeWarehouse: users[0].warehouse,
+  warehouseReceipts: {},
   modalType: null
 };
 
@@ -218,15 +242,18 @@ document.addEventListener('DOMContentLoaded', () => {
   bindNavigation();
   bindGlobalActions();
   setupWarehouseSelect();
+  setupUserControls();
   state.activeOrderId = state.orders[0]?.id ?? null;
   renderAll();
 });
 
 function initialiseOrders() {
+  state.warehouseReceipts = {};
   state.orders.forEach((order) => {
     order.stages.forEach((stage) => {
       stage.status = stageStatuses[stage.progress] ?? stage.status;
       stage.completed = stage.progress >= stageStatuses.length - 1;
+      updateWarehouseReceipts(order, stage, order.lastUpdate);
     });
     updateOrderFlow(order);
   });
@@ -247,7 +274,13 @@ function bindNavigation() {
 }
 
 function bindGlobalActions() {
-  document.getElementById('add-order-btn').addEventListener('click', () => openModal('order'));
+  document.getElementById('add-order-btn').addEventListener('click', () => {
+    if (!userHasPermission('addOrder')) {
+      window.alert('Yeni sipariş ekleme işlemi yalnızca Satış Operasyon rolü tarafından yapılabilir.');
+      return;
+    }
+    openModal('order');
+  });
   document.getElementById('add-product-btn').addEventListener('click', () => openModal('product'));
   document.getElementById('delete-order-btn').addEventListener('click', deleteActiveOrder);
   document.getElementById('dispatch-all-btn').addEventListener('click', dispatchAllFromWarehouse);
@@ -267,14 +300,138 @@ function bindGlobalActions() {
 
 function setupWarehouseSelect() {
   const select = document.getElementById('warehouse-select');
+  if (!select) {
+    return;
+  }
   select.innerHTML = state.factories
     .map((factory) => `<option value="${factory.name}">${factory.name}</option>`)
     .join('');
   select.value = state.activeWarehouse;
   select.addEventListener('change', (event) => {
     state.activeWarehouse = event.target.value;
+    const user = getActiveUser();
+    if (user) {
+      user.warehouse = state.activeWarehouse;
+    }
     renderHatManagement();
   });
+}
+
+function setupUserControls() {
+  const userSelect = document.getElementById('user-select');
+  if (userSelect) {
+    userSelect.innerHTML = state.users
+      .map((user) => `<option value="${user.id}">${user.name}</option>`)
+      .join('');
+    userSelect.value = state.activeUserId;
+    userSelect.addEventListener('change', (event) => {
+      state.activeUserId = event.target.value;
+      const activeUser = getActiveUser();
+      if (activeUser) {
+        state.activeWarehouse = activeUser.warehouse;
+      }
+      updateUserArea();
+      renderAll();
+    });
+  }
+
+  const manageRolesBtn = document.getElementById('manage-roles-btn');
+  if (manageRolesBtn) {
+    manageRolesBtn.addEventListener('click', () => {
+      if (!userHasPermission('manageRoles')) {
+        window.alert('Rol değişiklikleri yalnızca yöneticiler tarafından yapılabilir.');
+        return;
+      }
+      openModal('role');
+    });
+  }
+
+  updateUserArea();
+}
+
+function updateUserArea() {
+  const activeUser = getActiveUser();
+  if (activeUser) {
+    state.activeWarehouse = activeUser.warehouse;
+  }
+  updateUserSelect();
+  updateWarehouseSelect();
+  updateRoleDisplay();
+  updatePermissionSensitiveUI();
+  updateRoleManagementVisibility();
+}
+
+function getActiveUser() {
+  return state.users.find((user) => user.id === state.activeUserId) ?? null;
+}
+
+function getRoleDefinition(roleId) {
+  return roleDefinitions[roleId] ?? null;
+}
+
+function getRoleName(roleId) {
+  return getRoleDefinition(roleId)?.name ?? 'Tanımsız Rol';
+}
+
+function userHasPermission(permission) {
+  const activeUser = getActiveUser();
+  if (!activeUser) {
+    return false;
+  }
+  const role = getRoleDefinition(activeUser.roleId);
+  return Boolean(role?.permissions?.[permission]);
+}
+
+function updateUserSelect() {
+  const userSelect = document.getElementById('user-select');
+  if (userSelect) {
+    userSelect.value = state.activeUserId;
+  }
+}
+
+function updateWarehouseSelect() {
+  const select = document.getElementById('warehouse-select');
+  if (select) {
+    select.value = state.activeWarehouse;
+  }
+}
+
+function updateRoleDisplay() {
+  const roleDisplay = document.getElementById('role-display');
+  const activeUser = getActiveUser();
+  if (roleDisplay) {
+    roleDisplay.textContent = activeUser ? getRoleName(activeUser.roleId) : '-';
+  }
+}
+
+function updatePermissionSensitiveUI() {
+  const addOrderBtn = document.getElementById('add-order-btn');
+  if (addOrderBtn) {
+    const canAddOrder = userHasPermission('addOrder');
+    addOrderBtn.disabled = !canAddOrder;
+    addOrderBtn.title = canAddOrder
+      ? 'Yeni sipariş ekleyin'
+      : 'Sipariş ekleme işlemi Satış Operasyon rolü tarafından yapılabilir.';
+  }
+}
+
+function updateRoleManagementVisibility() {
+  const manageRolesBtn = document.getElementById('manage-roles-btn');
+  if (manageRolesBtn) {
+    const canManage = userHasPermission('manageRoles');
+    manageRolesBtn.classList.toggle('hidden', !canManage);
+    manageRolesBtn.disabled = !canManage;
+  }
+}
+
+function getFactoryNameById(factoryId) {
+  return state.factories.find((factory) => factory.id === factoryId)?.name ?? '';
+}
+
+function createRoleOptions(selectedRoleId) {
+  return Object.entries(roleDefinitions)
+    .map(([roleId, role]) => `<option value="${roleId}" ${roleId === selectedRoleId ? 'selected' : ''}>${role.name}</option>`)
+    .join('');
 }
 
 function renderAll() {
@@ -284,6 +441,7 @@ function renderAll() {
   renderProductManagement();
   renderFactorySummary();
   renderHatManagement();
+  updateUserArea();
 }
 
 function renderOrdersTable() {
@@ -538,6 +696,7 @@ function renderHatManagement() {
 
   const incomingStages = [];
   const outgoingStages = [];
+  const deliveredReceipts = state.warehouseReceipts[activeWarehouse] ?? [];
 
   state.orders.forEach((order) => {
     order.stages.forEach((stage) => {
@@ -550,9 +709,7 @@ function renderHatManagement() {
     });
   });
 
-  if (incomingStages.length === 0) {
-    incomingContainer.innerHTML = '<p class="muted">Gelen sipariş bulunmuyor.</p>';
-  } else {
+  if (incomingStages.length > 0) {
     incomingStages.forEach(({ order, stage }) => {
       const card = document.createElement('div');
       card.className = 'hat-card';
@@ -583,6 +740,36 @@ function renderHatManagement() {
       card.appendChild(actions);
       incomingContainer.appendChild(card);
     });
+  }
+
+  if (deliveredReceipts.length > 0) {
+    const section = document.createElement('div');
+    section.className = 'hat-subsection';
+    const heading = document.createElement('h4');
+    heading.className = 'hat-subsection-title';
+    heading.textContent = 'Teslim Alınan Siparişler';
+    section.appendChild(heading);
+
+    deliveredReceipts.forEach((receipt) => {
+      const card = document.createElement('div');
+      card.className = 'hat-card delivered';
+      card.innerHTML = `
+        <div class="hat-card-header">
+          <strong>${receipt.orderId}</strong>
+          <span class="badge">Teslim Alındı</span>
+        </div>
+        <span>Nereden: ${receipt.from}</span>
+        <span>Teslim Tarihi: ${receipt.deliveredAt}</span>
+        ${receipt.note ? `<span class="muted">${receipt.note}</span>` : ''}
+      `;
+      section.appendChild(card);
+    });
+
+    incomingContainer.appendChild(section);
+  }
+
+  if (incomingStages.length === 0 && deliveredReceipts.length === 0) {
+    incomingContainer.innerHTML = '<p class="muted">Gelen sipariş bulunmuyor.</p>';
   }
 
   if (outgoingStages.length === 0) {
@@ -845,6 +1032,14 @@ function openModal(type) {
         <label>Tahmini Teslimat</label>
         <input type="datetime-local" name="estimatedDelivery" />
       </div>
+      <div class="form-section product-form-section">
+        <div class="form-section-header">
+          <h4>Ürün Listesi</h4>
+          <p class="form-hint">Siparişe dahil edilen ürünleri ve miktarlarını girin.</p>
+        </div>
+        <div class="product-rows" data-product-rows></div>
+        <button type="button" class="btn secondary small" data-action="add-product-row">Ürün Satırı Ekle</button>
+      </div>
       <div class="form-group">
         <label>Not</label>
         <textarea name="note" placeholder="Sevkiyat notlarını giriniz"></textarea>
@@ -880,12 +1075,38 @@ function openModal(type) {
         <button type="submit" class="btn primary">Kaydet</button>
       </div>
     `;
+  } else if (type === 'role') {
+    title.textContent = 'Rol Yönetimi';
+    form.innerHTML = `
+      <p class="form-hint">Yalnızca yöneticiler kullanıcı rolleri üzerinde değişiklik yapabilir.</p>
+      <div class="form-grid role-grid">
+        ${state.users
+          .map(
+            (user) => `
+              <div class="form-group">
+                <label>${user.name}</label>
+                <select name="role-${user.id}">
+                  ${createRoleOptions(user.roleId)}
+                </select>
+              </div>
+            `
+          )
+          .join('')}
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" id="modal-cancel">Vazgeç</button>
+        <button type="submit" class="btn primary">Kaydet</button>
+      </div>
+    `;
   }
 
   form.onsubmit = handleModalSubmit;
   const cancelButton = form.querySelector('#modal-cancel');
   if (cancelButton) {
     cancelButton.addEventListener('click', closeModal, { once: true });
+  }
+  if (type === 'order') {
+    initializeOrderFormProducts(form);
   }
   modal.classList.remove('hidden');
 }
@@ -899,19 +1120,97 @@ function closeModal() {
   modalState.type = null;
 }
 
+function initializeOrderFormProducts(form) {
+  const rowsContainer = form.querySelector('[data-product-rows]');
+  const addButton = form.querySelector('[data-action="add-product-row"]');
+
+  if (!rowsContainer || !addButton) {
+    return;
+  }
+
+  if (state.productCatalog.length === 0) {
+    const message = document.createElement('p');
+    message.className = 'form-hint';
+    message.textContent = 'Sipariş oluşturabilmek için önce ürün kaydı ekleyin.';
+    rowsContainer.appendChild(message);
+    addButton.disabled = true;
+    return;
+  }
+
+  const optionsMarkup = state.productCatalog
+    .map((product) => `<option value="${product.code}">${product.name} (${product.code})</option>`)
+    .join('');
+
+  const addRow = (prefill) => {
+    const row = document.createElement('div');
+    row.className = 'product-row';
+    row.innerHTML = `
+      <div class="product-row-fields">
+        <label class="sr-only">Ürün</label>
+        <select name="productCode[]" required></select>
+        <label class="sr-only">Miktar</label>
+        <input type="number" name="productQty[]" min="1" step="1" value="${prefill?.qty ?? 1}" required aria-label="Miktar" />
+        <span class="product-origin" data-origin>Üretim: -</span>
+      </div>
+      <button type="button" class="icon-btn remove" data-action="remove-product-row" aria-label="Ürün satırını kaldır">×</button>
+    `;
+
+    const select = row.querySelector('select');
+    const originLabel = row.querySelector('[data-origin]');
+    select.innerHTML = optionsMarkup;
+
+    const defaultCode = prefill?.code ?? state.productCatalog[0]?.code ?? '';
+    if (defaultCode) {
+      select.value = defaultCode;
+    }
+
+    const updateOrigin = () => {
+      const selected = state.productCatalog.find((product) => product.code === select.value);
+      const originName = selected ? getFactoryNameById(selected.factoryId) : '';
+      originLabel.textContent = `Üretim: ${originName || '-'}`;
+    };
+
+    select.addEventListener('change', updateOrigin);
+    updateOrigin();
+
+    rowsContainer.appendChild(row);
+  };
+
+  addButton.addEventListener('click', () => {
+    addRow();
+  });
+
+  rowsContainer.addEventListener('click', (event) => {
+    if (event.target.dataset.action === 'remove-product-row') {
+      const row = event.target.closest('.product-row');
+      if (row && rowsContainer.children.length > 1) {
+        row.remove();
+      }
+    }
+  });
+
+  addRow();
+}
+
 function handleModalSubmit(event) {
   event.preventDefault();
   const form = event.target;
   const formData = new FormData(form);
 
+  let success = false;
+
   if (modalState.type === 'order') {
-    addOrderFromForm(formData);
+    success = addOrderFromForm(formData);
   } else if (modalState.type === 'product') {
-    addProductFromForm(formData);
+    success = addProductFromForm(formData);
+  } else if (modalState.type === 'role') {
+    success = updateRolesFromForm(formData);
   }
 
-  closeModal();
-  renderAll();
+  if (success) {
+    closeModal();
+    renderAll();
+  }
 }
 
 function addOrderFromForm(formData) {
@@ -929,6 +1228,36 @@ function addOrderFromForm(formData) {
   const estimatedDelivery = estimatedDeliveryInput ? formatDateFromInput(estimatedDeliveryInput) : '';
   const note = formData.get('note') || '';
 
+  const productCodes = formData.getAll('productCode[]');
+  const productQuantities = formData.getAll('productQty[]');
+
+  const products = productCodes
+    .map((code, index) => {
+      const trimmedCode = typeof code === 'string' ? code.trim() : '';
+      if (!trimmedCode) {
+        return null;
+      }
+      const quantityValue = Number(productQuantities[index] ?? 0);
+      if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+        return null;
+      }
+      const catalogProduct = state.productCatalog.find((item) => item.code === trimmedCode);
+      const originName = catalogProduct ? getFactoryNameById(catalogProduct.factoryId) : '-';
+
+      return {
+        code: trimmedCode,
+        name: catalogProduct?.name ?? 'Tanımsız Ürün',
+        qty: quantityValue,
+        origin: originName || '-'
+      };
+    })
+    .filter(Boolean);
+
+  if (products.length === 0) {
+    window.alert('Siparişe en az bir ürün eklemelisiniz.');
+    return false;
+  }
+
   const newOrderId = generateOrderId();
   const newOrder = {
     id: newOrderId,
@@ -943,7 +1272,7 @@ function addOrderFromForm(formData) {
     lastUpdate: orderDate,
     finalDestination: finalDestination || '-',
     statusHistory: [],
-    products: [],
+    products,
     stages: []
   };
 
@@ -987,6 +1316,7 @@ function addOrderFromForm(formData) {
   updateOrderFlow(newOrder);
   state.orders.unshift(newOrder);
   state.activeOrderId = newOrder.id;
+  return true;
 }
 
 function addProductFromForm(formData) {
@@ -1000,6 +1330,24 @@ function addProductFromForm(formData) {
     .filter(Boolean);
 
   state.productCatalog.unshift({ code, name, factoryId, groups: groups.length ? groups : ['Tanımsız Grup'] });
+  return true;
+}
+
+function updateRolesFromForm(formData) {
+  if (!userHasPermission('manageRoles')) {
+    window.alert('Rol değişiklikleri yalnızca yöneticiler tarafından yapılabilir.');
+    return false;
+  }
+
+  state.users.forEach((user) => {
+    const selectedRoleId = formData.get(`role-${user.id}`);
+    if (selectedRoleId && roleDefinitions[selectedRoleId]) {
+      user.roleId = selectedRoleId;
+    }
+  });
+
+  updateUserArea();
+  return true;
 }
 
 function deleteActiveOrder() {
@@ -1110,7 +1458,9 @@ function setStageProgress(order, stage, progress) {
   stage.progress = progress;
   stage.status = stageStatuses[progress];
   stage.completed = progress >= stageStatuses.length - 1;
-  order.lastUpdate = formatNow();
+  const timestamp = formatNow();
+  order.lastUpdate = timestamp;
+  updateWarehouseReceipts(order, stage, timestamp);
 }
 
 function progressNote(stage, progress) {
@@ -1144,6 +1494,56 @@ function updateOrderFlow(order) {
     order.currentLocation = previousStage ? previousStage.to : order.stages[nextStageIndex].from;
     order.nextLocation = order.stages[nextStageIndex].to;
   }
+}
+
+function updateWarehouseReceipts(order, stage, deliveredTimestamp = null) {
+  if (!stage) {
+    return;
+  }
+
+  const destination = stage.to;
+  const isFactoryDestination = state.factories.some((factory) => factory.name === destination);
+
+  if (!destination || !isFactoryDestination || !stage.completed) {
+    removeStageReceipt(stage.id);
+    return;
+  }
+
+  if (!state.warehouseReceipts[destination]) {
+    state.warehouseReceipts[destination] = [];
+  }
+
+  const receipts = state.warehouseReceipts[destination];
+  const existingIndex = receipts.findIndex((receipt) => receipt.stageId === stage.id);
+  const existingReceipt = existingIndex > -1 ? receipts[existingIndex] : null;
+  const deliveredAt = existingReceipt?.deliveredAt ?? deliveredTimestamp ?? formatNow();
+
+  const payload = {
+    stageId: stage.id,
+    orderId: order.id,
+    deliveredAt,
+    from: stage.from,
+    note: stage.note
+  };
+
+  if (existingIndex === -1) {
+    receipts.unshift(payload);
+  } else {
+    receipts[existingIndex] = { ...existingReceipt, ...payload };
+  }
+}
+
+function removeStageReceipt(stageId) {
+  Object.keys(state.warehouseReceipts).forEach((key) => {
+    const list = state.warehouseReceipts[key];
+    if (!Array.isArray(list)) {
+      return;
+    }
+    const index = list.findIndex((item) => item.stageId === stageId);
+    if (index > -1) {
+      list.splice(index, 1);
+    }
+  });
 }
 
 function formatDateFromInput(input) {

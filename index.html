@@ -19,8 +19,19 @@
         <button class="nav-item" data-tab="hat">Hat Yönetimi</button>
       </nav>
       <div class="user-area">
-        <span class="user-label">Kullanıcı Ambar</span>
-        <select id="warehouse-select" class="warehouse-select"></select>
+        <div class="user-field">
+          <span class="user-label">Aktif Kullanıcı</span>
+          <select id="user-select" class="user-select"></select>
+        </div>
+        <div class="user-field">
+          <span class="user-label">Rol</span>
+          <span id="role-display" class="role-badge">-</span>
+        </div>
+        <div class="user-field">
+          <span class="user-label">Kullanıcı Ambarı</span>
+          <select id="warehouse-select" class="warehouse-select"></select>
+        </div>
+        <button id="manage-roles-btn" class="btn ghost small">Rol Yönetimi</button>
       </div>
     </header>
 
@@ -201,7 +212,6 @@
       <section class="detail-section">
         <h3>Sevk Durumu</h3>
         <ul class="status-list" data-field="statusHistory"></ul>
-        <button class="btn secondary" data-action="add-status">Durum Ekle</button>
       </section>
       <section class="detail-section">
         <h3>Hat Adımları</h3>
