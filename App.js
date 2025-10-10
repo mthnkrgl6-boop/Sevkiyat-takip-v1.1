@@ -166,6 +166,7 @@ const state = {
         consolidation: { province: 'Aksaray', position: { x: 56, y: 58 } },
         final: { province: 'Hatay', position: { x: 80, y: 82 } }
       },
+      consolidationPoint: 'Aksaray Merkez Fabrika',
       statusHistory: [
         { timestamp: '09.11.2024 10:15', note: 'İstanbul Şirin: Metal ürünler üretimden çıktı.' },
         { timestamp: '09.11.2024 14:40', note: 'Metal hat sevkiyatı İstanbul Şirin fabrikadan yola çıktı.' }
@@ -354,6 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initialiseOrders() {
   state.warehouseReceipts = {};
   state.orders.forEach((order) => {
+    prepareStageData(order);
     order.stages.forEach((stage) => {
       stage.status = stageStatuses[stage.progress] ?? stage.status;
       stage.completed = stage.progress >= stageStatuses.length - 1;
@@ -361,6 +363,217 @@ function initialiseOrders() {
     });
     updateOrderFlow(order);
   });
+}
+
+function prepareStageData(order) {
+  if (!order) {
+    return;
+  }
+
+  if (order.routeType === 'Birleştirme') {
+    if (!order.consolidationPoint) {
+      const firstStage = order.stages[0];
+      const secondStage = order.stages[1];
+      if (secondStage && firstStage?.to === secondStage.from) {
+        order.consolidationPoint = secondStage.from;
+      } else if (firstStage?.to) {
+        order.consolidationPoint = firstStage.to;
+      }
+    }
+  }
+
+  order.stages.forEach((stage, index) => {
+    stage.lineItems = normaliseLineItems(order, stage, index);
+    stage.dispatchApproval = stage.dispatchApproval || {
+      approved: false,
+      approvedBy: null,
+      timestamp: null,
+      note: ''
+    };
+  });
+}
+
+function normaliseLineItems(order, stage, stageIndex) {
+  const targetProducts = deriveProductsForStage(order, stage, stageIndex);
+  const existing = Array.isArray(stage.lineItems) ? stage.lineItems : [];
+
+  return targetProducts.map((product) => {
+    const matched = existing.find((item) => item.productCode === product.code);
+    const qty = Number(product.qty) || 0;
+    const readyQty = clamp(matched?.readyQty ?? qty - (matched?.missingQty ?? 0), 0, qty);
+    const missingQty = clamp(matched?.missingQty ?? qty - readyQty, 0, qty);
+
+    return {
+      productCode: product.code,
+      productName: product.name,
+      origin: product.origin,
+      qty,
+      readyQty,
+      missingQty
+    };
+  });
+}
+
+function deriveProductsForStage(order, stage, stageIndex) {
+  if (!order || !stage) {
+    return [];
+  }
+
+  const consolidationPoint = order.consolidationPoint;
+  const isConsolidationDispatch = Boolean(
+    consolidationPoint && stage.from === consolidationPoint && stageIndex > 0
+  );
+
+  let products = order.products.filter((product) => product.origin === stage.from);
+
+  if (isConsolidationDispatch) {
+    products = order.products.slice();
+  }
+
+  if (products.length === 0) {
+    if (order.stages.length === 1) {
+      products = order.products.slice();
+    } else if (isConsolidationDispatch) {
+      products = order.products.slice();
+    }
+  }
+
+  if (products.length === 0) {
+    products = order.products.slice();
+  }
+
+  return products;
+}
+
+function clamp(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return min;
+  }
+  return Math.min(Math.max(number, min), max);
+}
+
+function isStageDispatchReady(stage) {
+  if (!stage) {
+    return false;
+  }
+
+  if (!stage.dispatchApproval?.approved) {
+    return false;
+  }
+
+  if (!Array.isArray(stage.lineItems) || stage.lineItems.length === 0) {
+    return true;
+  }
+
+  return stage.lineItems.every((item) => {
+    const qty = Number(item.qty) || 0;
+    const ready = clamp(item.readyQty, 0, qty);
+    const missing = clamp(item.missingQty, 0, qty);
+    return Math.round(ready + missing) === Math.round(qty);
+  });
+}
+
+function resetStageApproval(stage) {
+  if (!stage?.dispatchApproval) {
+    return;
+  }
+  stage.dispatchApproval.approved = false;
+  stage.dispatchApproval.approvedBy = null;
+  stage.dispatchApproval.timestamp = null;
+  stage.dispatchApproval.note = '';
+}
+
+function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    return;
+  }
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage || !Array.isArray(stage.lineItems)) {
+    return;
+  }
+
+  const index = Number(itemIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= stage.lineItems.length) {
+    return;
+  }
+
+  const lineItem = stage.lineItems[index];
+  const qty = Number(lineItem.qty) || 0;
+  const numericValue = clamp(value, 0, qty);
+
+  if (field === 'ready') {
+    lineItem.readyQty = Math.round(numericValue);
+    lineItem.missingQty = Math.max(0, qty - lineItem.readyQty);
+  } else if (field === 'missing') {
+    lineItem.missingQty = Math.round(numericValue);
+    lineItem.readyQty = Math.max(0, qty - lineItem.missingQty);
+  }
+
+  resetStageApproval(stage);
+  renderHatManagement();
+}
+
+function setLineItemComplete(orderId, stageId, itemIndex) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    return;
+  }
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage || !Array.isArray(stage.lineItems)) {
+    return;
+  }
+
+  const index = Number(itemIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= stage.lineItems.length) {
+    return;
+  }
+
+  const lineItem = stage.lineItems[index];
+  lineItem.readyQty = Number(lineItem.qty) || 0;
+  lineItem.missingQty = 0;
+  resetStageApproval(stage);
+  renderHatManagement();
+}
+
+function toggleStageApproval(orderId, stageId, approved) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    renderHatManagement();
+    return false;
+  }
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage) {
+    renderHatManagement();
+    return false;
+  }
+
+  stage.dispatchApproval = stage.dispatchApproval || {
+    approved: false,
+    approvedBy: null,
+    timestamp: null,
+    note: ''
+  };
+
+  if (approved) {
+    const quantitiesValid = isStageDispatchReady({ ...stage, dispatchApproval: { approved: true } });
+    if (!quantitiesValid) {
+      window.alert('Hazır ve eksik miktarların toplamı ürün adedine eşit olmalıdır.');
+      renderHatManagement();
+      return false;
+    }
+    stage.dispatchApproval.approved = true;
+    stage.dispatchApproval.timestamp = formatNow();
+    const approver = getActiveUser();
+    stage.dispatchApproval.approvedBy = approver?.name ?? 'Bilinmeyen Kullanıcı';
+    addHistory(order, `${stage.from}: Çıkış onayı ${stage.dispatchApproval.approvedBy} tarafından verildi.`);
+  } else {
+    resetStageApproval(stage);
+  }
+
+  renderHatManagement();
+  return true;
 }
 
 function bindNavigation() {
@@ -400,7 +613,10 @@ function bindGlobalActions() {
   const incomingList = document.getElementById('incoming-list');
   incomingList.addEventListener('change', handleIncomingAction);
   incomingList.addEventListener('click', handleIncomingAction);
-  document.getElementById('outgoing-list').addEventListener('click', handleOutgoingAction);
+  const outgoingList = document.getElementById('outgoing-list');
+  outgoingList.addEventListener('click', handleOutgoingAction);
+  outgoingList.addEventListener('input', handleOutgoingAction);
+  outgoingList.addEventListener('change', handleOutgoingAction);
   document.getElementById('product-table-body').addEventListener('change', handleProductFactoryChange);
 }
 
@@ -931,15 +1147,144 @@ function renderHatManagement() {
     outgoingStages.forEach(({ order, stage }) => {
       const card = document.createElement('div');
       card.className = 'hat-card';
-      card.innerHTML = `
-        <div class="hat-card-header">
-          <strong>${order.id}</strong>
-          <span class="badge">${stage.status}</span>
-        </div>
-        <span>Nereye: ${stage.to}</span>
-        <span>Planlanan Çıkış: ${stage.plannedStart}</span>
-        <span>Sorumlu: ${stage.responsible}</span>
-      `;
+
+      const hasLineItems = Array.isArray(stage.lineItems) && stage.lineItems.length > 0;
+      const hasMissing = hasLineItems && stage.lineItems.some((item) => Number(item.missingQty) > 0);
+
+      if (stage.shortageFlagged || hasMissing) {
+        card.classList.add('shortage');
+      }
+
+      const header = document.createElement('div');
+      header.className = 'hat-card-header';
+      const title = document.createElement('strong');
+      title.textContent = order.id;
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'badge';
+      statusBadge.textContent = stage.status;
+      header.append(title, statusBadge);
+      if (stage.shortageFlagged || hasMissing) {
+        const shortageBadge = document.createElement('span');
+        shortageBadge.className = 'badge warning';
+        shortageBadge.textContent = 'Eksik Ürün';
+        header.appendChild(shortageBadge);
+      }
+      card.appendChild(header);
+
+      const destination = document.createElement('span');
+      destination.textContent = `Nereye: ${stage.to}`;
+      card.appendChild(destination);
+
+      const plannedStart = document.createElement('span');
+      plannedStart.textContent = `Planlanan Çıkış: ${stage.plannedStart}`;
+      card.appendChild(plannedStart);
+
+      const responsible = document.createElement('span');
+      responsible.textContent = `Sorumlu: ${stage.responsible}`;
+      card.appendChild(responsible);
+
+      if (hasLineItems) {
+        const table = document.createElement('table');
+        table.className = 'hat-line-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Ürün</th><th>Toplam</th><th>Hazır</th><th>Eksik</th><th>Durum</th></tr>';
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        stage.lineItems.forEach((item, index) => {
+          const tr = document.createElement('tr');
+          if (Number(item.missingQty) > 0) {
+            tr.classList.add('missing');
+          }
+
+          const productCell = document.createElement('td');
+          productCell.innerHTML = `<strong>${item.productName}</strong><span class="muted">Kod: ${item.productCode}</span>`;
+          tr.appendChild(productCell);
+
+          const qtyCell = document.createElement('td');
+          qtyCell.textContent = item.qty;
+          tr.appendChild(qtyCell);
+
+          const readyCell = document.createElement('td');
+          const readyInput = document.createElement('input');
+          readyInput.type = 'number';
+          readyInput.min = '0';
+          readyInput.step = '1';
+          readyInput.max = String(item.qty);
+          readyInput.value = item.readyQty ?? item.qty;
+          readyInput.dataset.action = 'line-ready';
+          readyInput.dataset.stageId = stage.id;
+          readyInput.dataset.orderId = order.id;
+          readyInput.dataset.itemIndex = String(index);
+          readyInput.disabled = stage.progress >= 2;
+          readyCell.appendChild(readyInput);
+          tr.appendChild(readyCell);
+
+          const missingCell = document.createElement('td');
+          const missingInput = document.createElement('input');
+          missingInput.type = 'number';
+          missingInput.min = '0';
+          missingInput.step = '1';
+          missingInput.max = String(item.qty);
+          missingInput.value = item.missingQty ?? 0;
+          missingInput.dataset.action = 'line-missing';
+          missingInput.dataset.stageId = stage.id;
+          missingInput.dataset.orderId = order.id;
+          missingInput.dataset.itemIndex = String(index);
+          missingInput.disabled = stage.progress >= 2;
+          missingCell.appendChild(missingInput);
+          tr.appendChild(missingCell);
+
+          const statusCell = document.createElement('td');
+          const statusIndicator = document.createElement('span');
+          const missingCount = Number(item.missingQty) || 0;
+          statusIndicator.className = `badge ${missingCount > 0 ? 'warning' : 'success'}`;
+          statusIndicator.textContent = missingCount > 0 ? `Eksik (${missingCount})` : 'Tam';
+          statusCell.appendChild(statusIndicator);
+          if (stage.progress < 2) {
+            const fillBtn = document.createElement('button');
+            fillBtn.type = 'button';
+            fillBtn.className = 'btn ghost small';
+            fillBtn.dataset.action = 'fill-complete';
+            fillBtn.dataset.stageId = stage.id;
+            fillBtn.dataset.orderId = order.id;
+            fillBtn.dataset.itemIndex = String(index);
+            fillBtn.textContent = 'Tam';
+            statusCell.appendChild(fillBtn);
+          }
+          tr.appendChild(statusCell);
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        card.appendChild(table);
+      }
+
+      const approval = document.createElement('div');
+      approval.className = 'hat-approval';
+      const approvalLabel = document.createElement('label');
+      approvalLabel.className = 'checkbox';
+      const approvalInput = document.createElement('input');
+      approvalInput.type = 'checkbox';
+      approvalInput.dataset.action = 'toggle-approval';
+      approvalInput.dataset.stageId = stage.id;
+      approvalInput.dataset.orderId = order.id;
+      approvalInput.checked = Boolean(stage.dispatchApproval?.approved);
+      approvalInput.disabled = stage.progress >= 2;
+      approvalLabel.append(approvalInput, document.createTextNode('Çıkış Onayı'));
+      approval.appendChild(approvalLabel);
+
+      const approvalInfo = document.createElement('span');
+      approvalInfo.className = 'hat-approval-info';
+      if (stage.dispatchApproval?.approved && stage.dispatchApproval.timestamp) {
+        const approver = stage.dispatchApproval.approvedBy ?? 'Onaylandı';
+        approvalInfo.textContent = `${approver} • ${stage.dispatchApproval.timestamp}`;
+      } else {
+        approvalInfo.textContent = 'Onay bekleniyor';
+        approvalInfo.classList.add('pending');
+      }
+      approval.appendChild(approvalInfo);
+      card.appendChild(approval);
 
       const actions = document.createElement('div');
       actions.className = 'hat-card-actions';
@@ -950,6 +1295,10 @@ function renderHatManagement() {
         sendBtn.dataset.stageId = stage.id;
         sendBtn.dataset.orderId = order.id;
         sendBtn.textContent = 'Gönder';
+        if (!isStageDispatchReady(stage)) {
+          sendBtn.disabled = true;
+          sendBtn.title = 'Çıkış onayı ve ürün kontrollerini tamamlayın.';
+        }
         actions.appendChild(sendBtn);
       } else {
         const info = document.createElement('span');
@@ -1103,7 +1452,27 @@ function handleOutgoingAction(event) {
     return;
   }
 
-  if (action === 'dispatch-stage') {
+  if ((action === 'line-ready' || action === 'line-missing') && (event.type === 'input' || event.type === 'change')) {
+    const { orderId, stageId, itemIndex } = target.dataset;
+    const field = action === 'line-ready' ? 'ready' : 'missing';
+    updateLineItemQuantities(orderId, stageId, itemIndex, field, target.value);
+    return;
+  }
+
+  if (action === 'fill-complete' && event.type === 'click') {
+    event.preventDefault();
+    const { orderId, stageId, itemIndex } = target.dataset;
+    setLineItemComplete(orderId, stageId, itemIndex);
+    return;
+  }
+
+  if (action === 'toggle-approval' && event.type === 'change') {
+    const { orderId, stageId } = target.dataset;
+    toggleStageApproval(orderId, stageId, target.checked);
+    return;
+  }
+
+  if (action === 'dispatch-stage' && event.type === 'click') {
     const { orderId, stageId } = target.dataset;
     dispatchStage(orderId, stageId);
   }
@@ -1776,7 +2145,8 @@ function addOrderFromForm(formData) {
     statusHistory: [],
     products,
     stages: [],
-    routeMap
+    routeMap,
+    consolidationPoint: isMergeRoute ? consolidationLabel : null
   };
 
   newOrder.statusHistory.push({
@@ -1831,6 +2201,7 @@ function addOrderFromForm(formData) {
     newOrder.stages.push(secondStage);
   }
 
+  prepareStageData(newOrder);
   updateOrderFlow(newOrder);
   state.orders.unshift(newOrder);
   state.activeOrderId = newOrder.id;
@@ -1922,28 +2293,66 @@ function advanceStage(orderId, stageId) {
 function dispatchStage(orderId, stageId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) {
-    return;
+    return false;
   }
   const stage = order.stages.find((item) => item.id === stageId);
   if (!stage) {
-    return;
+    return false;
   }
 
   if (stage.progress >= 2) {
-    return;
+    return false;
+  }
+
+  if (!isStageDispatchReady(stage)) {
+    window.alert('Sevkiyat çıkışı için ürün kontrolleri ve ambar onayı tamamlanmalıdır.');
+    return false;
+  }
+
+  const shortageItems = Array.isArray(stage.lineItems)
+    ? stage.lineItems
+        .filter((item) => Number(item.missingQty) > 0)
+        .map((item) => ({
+          code: item.productCode,
+          name: item.productName,
+          qty: Number(item.missingQty) || 0,
+          origin: item.origin
+        }))
+    : [];
+
+  if (shortageItems.length > 0) {
+    stage.shortages = stage.shortages || [];
+    stage.shortages.push({ timestamp: formatNow(), items: shortageItems });
+    stage.shortageFlagged = true;
+    const summary = shortageItems.map((item) => `${item.code} x${item.qty}`).join(', ');
+    addHistory(order, `${stage.from}: Eksik ürün bildirimi - ${summary}`);
+    const revisionOrder = createShortageOrder(order, stage, shortageItems);
+    addHistory(order, `${stage.from}: Eksik ürünler için ${revisionOrder.id} revizyonu açıldı.`);
+    window.alert('Eksik ürünler için yeni bir revizyon siparişi oluşturuldu.');
+  }
+
+  if (Array.isArray(stage.lineItems)) {
+    stage.lineItems.forEach((item) => {
+      const qty = Number(item.qty) || 0;
+      item.readyQty = clamp(item.readyQty, 0, qty);
+      item.missingQty = clamp(item.missingQty, 0, qty);
+    });
   }
 
   const { orderCompleted, timestamp } = setStageProgress(order, stage, 2);
   addHistory(order, `${stage.from}: Sevkiyat yola çıktı.`);
 
+  resetStageApproval(stage);
+
   if (orderCompleted) {
     archiveOrder(order, timestamp);
     renderAll();
-    return;
+    return true;
   }
 
   updateOrderFlow(order);
   renderAll();
+  return true;
 }
 
 function completeStage(orderId, stageId) {
@@ -1975,30 +2384,34 @@ function completeStage(orderId, stageId) {
 
 function dispatchAllFromWarehouse() {
   const activeWarehouse = state.activeWarehouse;
-  let updated = false;
-  state.orders.slice().forEach((order) => {
-    let archived = false;
+  const stagesToDispatch = [];
+
+  state.orders.forEach((order) => {
     order.stages.forEach((stage) => {
-      if (archived) {
-        return;
-      }
       if (stage.from === activeWarehouse && stage.progress < 2) {
-        const { orderCompleted, timestamp } = setStageProgress(order, stage, 2);
-        addHistory(order, `${stage.from}: Sevkiyat toplu gönderildi.`);
-        updated = true;
-        if (orderCompleted) {
-          archiveOrder(order, timestamp);
-          archived = true;
-        }
+        stagesToDispatch.push({ orderId: order.id, stageId: stage.id });
       }
     });
-    if (!archived && state.orders.includes(order)) {
-      updateOrderFlow(order);
-    }
   });
 
-  if (updated) {
-    renderAll();
+  const readyStages = stagesToDispatch.filter(({ orderId, stageId }) => {
+    const order = state.orders.find((item) => item.id === orderId);
+    const stage = order?.stages.find((item) => item.id === stageId);
+    return stage ? isStageDispatchReady(stage) : false;
+  });
+
+  if (readyStages.length === 0) {
+    window.alert('Çıkış için onaylanmış sevkiyat bulunmuyor.');
+    return;
+  }
+
+  let dispatchedAny = false;
+  readyStages.forEach(({ orderId, stageId }) => {
+    dispatchedAny = dispatchStage(orderId, stageId) || dispatchedAny;
+  });
+
+  if (!dispatchedAny) {
+    window.alert('Onaylı sevkiyat bulunamadı.');
   }
 }
 
@@ -2172,6 +2585,7 @@ function createShortageOrder(order, stage, shortageItems) {
 
   revisionOrder.stages = stagePlans;
 
+  prepareStageData(revisionOrder);
   updateOrderFlow(revisionOrder);
   state.orders.unshift(revisionOrder);
   state.activeOrderId = revisionOrder.id;

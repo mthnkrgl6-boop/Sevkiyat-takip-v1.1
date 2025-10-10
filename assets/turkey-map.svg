@@ -1,34 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" role="img" aria-labelledby="title desc">
-  <title id="title">Türkiye İl Haritası</title>
-  <desc id="desc">Türkiye illerinin gösterildiği mavi tonlarda stilize harita</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Türkiye Haritası</title>
+  <desc id="desc">Türkiye anakarasını stilize edilmiş fakat gerçekçi bir kontur ile gösteren harita görselleştirmesi.</desc>
   <defs>
     <linearGradient id="bgGradient" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#f2f6fb" />
-      <stop offset="100%" stop-color="#dce6f0" />
+      <stop offset="0%" stop-color="#edf4ff" />
+      <stop offset="100%" stop-color="#d6e4f6" />
     </linearGradient>
-    <linearGradient id="mapGradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4a86b7" />
-      <stop offset="100%" stop-color="#2f6c96" />
+    <linearGradient id="landGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4c7fb5" />
+      <stop offset="100%" stop-color="#2b5f8d" />
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-opacity="0.18" flood-color="#1f3d57" />
+    <linearGradient id="reliefGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.35)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </linearGradient>
+    <filter id="dropShadow" x="-15%" y="-20%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity="0.2" flood-color="#1f3d57" />
     </filter>
   </defs>
-  <rect width="1000" height="460" fill="url(#bgGradient)" rx="22" />
-  <g filter="url(#shadow)">
-    <path fill="url(#mapGradient)" stroke="#ffffff" stroke-width="2" d="M58 276c21-20 44-36 83-42 26-4 51-6 72-22 41-31 83-57 134-54 41 2 68 17 107 12 32-4 62-22 95-30 51-13 99-2 146 13 39 13 82 10 122 20 26 7 48 23 74 28 22 4 45-2 68-5 35-4 57 16 84 33 15 10 36 17 46 35 12 21 5 39-9 57-11 13-27 18-42 24-29 11-62 17-93 15-25-1-45-19-69-18-37 2-71 20-106 32-37 13-76 10-113 19-41 10-83 16-125 17-40 0-78-12-117-18-40-6-82-5-121-16-32-9-59-30-92-38-32-8-65-4-96-15-33-12-62-33-94-47-30-14-49-29-59-51-5-11-5-23 10-35z" />
-    <g fill="none" stroke="#ffffff" stroke-width="1.6" opacity="0.72" stroke-linecap="round">
-      <path d="M127 258c62-33 119-71 175-68 46 3 80 24 124 18 37-5 73-24 110-33 51-13 94 7 141 19 33 8 70 4 102 16" />
-      <path d="M210 320c36-22 70-53 115-47 44 6 84 37 131 34 42-3 78-34 120-46 49-14 97 9 147 22 42 11 87 13 127 7" />
-      <path d="M333 219c-24 54 15 115 63 145 49 30 117 38 175 28 63-11 123-44 185-55 37-6 73 0 108 13" />
-      <path d="M640 196c12 37 41 74 77 92 35 17 79 18 118 8 42-11 78-35 120-46" />
-      <path d="M461 173c10 41 5 88 34 123 30 36 83 49 128 40 48-9 87-39 135-49" />
-      <path d="M85 258c60 47 129 88 206 99 69 10 139-7 208 2 55 7 107 34 163 41 52 7 105-8 156-4" />
-    </g>
-    <g fill="#2f6c96" opacity="0.45">
-      <path d="M169 205c14-18 31-31 51-36 27-7 54 5 80 11 27 6 50 4 76-4 24-7 50-23 74-21 27 2 49 22 76 27 38 7 79-15 117-3 36 12 57 49 90 67 34 19 72 18 110 20" />
-      <path d="M266 335c18-14 41-23 64-22 28 1 54 15 82 18 27 3 52-7 78-12 31-6 59 3 88 8 35 6 69 2 103-6 28-7 58-8 84 5" />
-      <path d="M545 300c10-16 28-23 46-28 25-6 50-8 75-6 30 2 59 10 89 11 21 1 42-3 63-5" />
-    </g>
+  <rect width="1200" height="600" fill="url(#bgGradient)" />
+  <g filter="url(#dropShadow)">
+    <path
+      fill="url(#landGradient)"
+      stroke="#ffffff"
+      stroke-width="3"
+      stroke-linejoin="round"
+      d="M85 315L110 300L140 305L165 285L205 280L235 260L220 235L245 210L275 195L305 165L350 155L385 140L430 135L470 120L520 110L565 115L605 110L645 120L690 125L735 120L780 130L820 125L860 135L905 130L950 140L990 155L1030 170L1070 185L1110 200L1150 225L1185 250L1195 280L1185 315L1160 340L1170 365L1155 395L1120 410L1080 420L1035 430L990 420L950 430L905 435L860 430L815 420L775 400L735 410L690 400L650 380L605 365L560 355L515 340L470 330L420 330L375 320L330 315L285 320L240 325L195 330L150 325L115 330Z"
+    />
+    <path
+      fill="url(#reliefGradient)"
+      d="M140 315C250 305 360 250 470 245C600 240 720 305 850 300C955 295 1065 255 1145 255C1170 255 1185 268 1185 280C1185 292 1170 308 1135 322C1035 360 915 410 780 398C670 388 560 340 440 340C320 340 220 360 140 340C115 334 110 321 140 315Z"
+      opacity="0.55"
+    />
+    <path
+      d="M210 272C280 244 345 196 410 182C510 160 610 215 700 212C780 208 870 170 930 170"
+      stroke="rgba(255,255,255,0.45)"
+      stroke-width="2.6"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <path
+      d="M260 330C360 300 470 300 560 330C640 357 720 370 810 362C885 356 960 330 1025 302"
+      stroke="rgba(255,255,255,0.35)"
+      stroke-width="2.4"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <path
+      d="M520 120C525 140 540 160 565 170C620 190 700 170 750 160C820 145 900 160 960 190"
+      stroke="rgba(17,45,78,0.3)"
+      stroke-width="3"
+      fill="none"
+      stroke-linecap="round"
+    />
+  </g>
+  <g fill="#1f3d57" opacity="0.72">
+    <circle cx="430" cy="280" r="6" />
+    <circle cx="600" cy="255" r="6" />
+    <circle cx="760" cy="250" r="6" />
+    <circle cx="900" cy="240" r="6" />
+  </g>
+  <g font-family="'Inter', sans-serif" font-size="20" fill="#1f3d57" opacity="0.85">
+    <text x="448" y="275">İstanbul</text>
+    <text x="618" y="248">Ankara</text>
+    <text x="778" y="244">Sivas</text>
+    <text x="918" y="234">Diyarbakır</text>
   </g>
 </svg>

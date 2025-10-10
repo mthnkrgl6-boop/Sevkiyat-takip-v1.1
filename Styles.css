@@ -537,6 +537,11 @@ body {
   color: #8a5a00;
 }
 
+.badge.success {
+  background: rgba(66, 140, 103, 0.25);
+  color: #2f6b4c;
+}
+
 .hat-list {
   display: flex;
   flex-direction: column;
@@ -604,6 +609,109 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.hat-line-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.hat-line-table thead th {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-dark);
+  padding: 8px 10px;
+  background: rgba(255, 247, 236, 0.82);
+}
+
+.hat-line-table tbody td {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--accent-dark);
+  vertical-align: middle;
+}
+
+.hat-line-table tbody tr:nth-child(even) {
+  background: rgba(255, 241, 217, 0.65);
+}
+
+.hat-line-table tbody tr.missing {
+  background: rgba(255, 221, 173, 0.45);
+}
+
+.hat-line-table tbody tr.missing td:first-child strong {
+  color: #a85f00;
+}
+
+.hat-line-table td:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+}
+
+.hat-line-table td:first-child .muted {
+  font-size: 12px;
+}
+
+.hat-line-table input[type='number'] {
+  width: 90px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(211, 134, 53, 0.4);
+  background: #fff;
+  font-size: 13px;
+  color: var(--accent-dark);
+}
+
+.hat-line-table input[type='number']:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 163, 75, 0.25);
+  outline: none;
+}
+
+.hat-line-table input[type='number']:disabled {
+  background: rgba(255, 255, 255, 0.65);
+  cursor: not-allowed;
+}
+
+.hat-line-table td:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.hat-line-table .btn.ghost.small {
+  padding: 4px 10px;
+}
+
+.hat-approval {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px dashed rgba(211, 134, 53, 0.45);
+  flex-wrap: wrap;
+}
+
+.hat-approval-info {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+.hat-approval-info.pending {
+  color: #c76800;
 }
 
 .checkbox {
