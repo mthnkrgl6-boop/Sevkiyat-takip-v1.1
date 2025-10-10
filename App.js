@@ -633,7 +633,7 @@ function renderOrderDetail() {
     mapFigure.innerHTML = `
       <div class="map-figure-inner">
         <img
-          src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png"
+          src="assets/turkey-map.svg"
           alt="Türkiye iller haritası"
           class="map-image"
         />
@@ -1195,7 +1195,7 @@ function openModal(type) {
           </label>
         </div>
         <div class="map-selector" data-map-selector>
-          <img src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png" alt="Türkiye haritası" />
+          <img src="assets/turkey-map.svg" alt="Türkiye haritası" />
           <div class="map-marker-layer" data-map-markers></div>
         </div>
         <div class="location-summary">
