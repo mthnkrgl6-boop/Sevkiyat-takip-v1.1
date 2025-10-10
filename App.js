@@ -15,6 +15,90 @@ const roleDefinitions = {
 
 const stageStatuses = ['Bekliyor', 'Hazırlanıyor', 'Yolda', 'Tamamlandı'];
 
+const provinceOptions = [
+  'Adana',
+  'Adıyaman',
+  'Afyonkarahisar',
+  'Ağrı',
+  'Aksaray',
+  'Amasya',
+  'Ankara',
+  'Antalya',
+  'Ardahan',
+  'Artvin',
+  'Aydın',
+  'Balıkesir',
+  'Bartın',
+  'Batman',
+  'Bayburt',
+  'Bilecik',
+  'Bingöl',
+  'Bitlis',
+  'Bolu',
+  'Burdur',
+  'Bursa',
+  'Çanakkale',
+  'Çankırı',
+  'Çorum',
+  'Denizli',
+  'Diyarbakır',
+  'Düzce',
+  'Edirne',
+  'Elazığ',
+  'Erzincan',
+  'Erzurum',
+  'Eskişehir',
+  'Gaziantep',
+  'Giresun',
+  'Gümüşhane',
+  'Hakkâri',
+  'Hatay',
+  'Iğdır',
+  'Isparta',
+  'İstanbul',
+  'İzmir',
+  'Kahramanmaraş',
+  'Karabük',
+  'Karaman',
+  'Kars',
+  'Kastamonu',
+  'Kayseri',
+  'Kırıkkale',
+  'Kırklareli',
+  'Kırşehir',
+  'Kilis',
+  'Kocaeli',
+  'Konya',
+  'Kütahya',
+  'Malatya',
+  'Manisa',
+  'Mardin',
+  'Mersin',
+  'Muğla',
+  'Muş',
+  'Nevşehir',
+  'Niğde',
+  'Ordu',
+  'Osmaniye',
+  'Rize',
+  'Sakarya',
+  'Samsun',
+  'Siirt',
+  'Sinop',
+  'Sivas',
+  'Şanlıurfa',
+  'Şırnak',
+  'Tekirdağ',
+  'Tokat',
+  'Trabzon',
+  'Tunceli',
+  'Uşak',
+  'Van',
+  'Yalova',
+  'Yozgat',
+  'Zonguldak'
+];
+
 const factories = [
   {
     id: 'istanbul-sirin',
@@ -66,6 +150,7 @@ const state = {
   orders: [
     {
       id: 'ORD-HTY-235664',
+      revisionOf: 'ORD-HTY-235664',
       orderDate: '01.12.2024 11:40',
       invoiceNumber: '235664',
       type: 'Şantiye',
@@ -76,6 +161,11 @@ const state = {
       estimatedDelivery: '15.12.2024',
       lastUpdate: '09.11.2024 14:40',
       finalDestination: 'Hatay Çekmece Konut Projesi Şantiyesi',
+      routeMap: {
+        start: { province: 'İstanbul', position: { x: 22, y: 32 } },
+        consolidation: { province: 'Aksaray', position: { x: 56, y: 58 } },
+        final: { province: 'Hatay', position: { x: 80, y: 82 } }
+      },
       statusHistory: [
         { timestamp: '09.11.2024 10:15', note: 'İstanbul Şirin: Metal ürünler üretimden çıktı.' },
         { timestamp: '09.11.2024 14:40', note: 'Metal hat sevkiyatı İstanbul Şirin fabrikadan yola çıktı.' }
@@ -115,6 +205,7 @@ const state = {
     },
     {
       id: 'ORD-ANK-336744',
+      revisionOf: 'ORD-ANK-336744',
       orderDate: '05.12.2024 09:20',
       invoiceNumber: '336744',
       type: 'Bölge',
@@ -125,6 +216,10 @@ const state = {
       estimatedDelivery: '18.12.2024',
       lastUpdate: '05.12.2024 09:45',
       finalDestination: 'Ankara Bölge Müdürlüğü Deposu',
+      routeMap: {
+        start: { province: 'Aksaray', position: { x: 57, y: 56 } },
+        final: { province: 'Ankara', position: { x: 48, y: 44 } }
+      },
       statusHistory: [
         { timestamp: '05.12.2024 08:40', note: 'Aksaray Merkez: PPRC borular sevkiyat planına alındı.' },
         { timestamp: '05.12.2024 09:45', note: 'Çıkış hazırlıkları tamamlanıyor.' }
@@ -151,6 +246,7 @@ const state = {
     },
     {
       id: 'ORD-MLT-363723',
+      revisionOf: 'ORD-MLT-363723',
       orderDate: '09.11.2024 12:10',
       invoiceNumber: '363723',
       type: 'Müşteri Depo',
@@ -161,6 +257,10 @@ const state = {
       estimatedDelivery: '20.11.2024',
       lastUpdate: '09.11.2024 12:35',
       finalDestination: 'Malatya Bölge Deposu',
+      routeMap: {
+        start: { province: 'İstanbul', position: { x: 22, y: 32 } },
+        final: { province: 'Malatya', position: { x: 72, y: 60 } }
+      },
       statusHistory: [
         { timestamp: '09.11.2024 12:10', note: 'İstanbul Şirin: Metal raf sistemleri paketlendi.' }
       ],
@@ -200,20 +300,24 @@ const state = {
   ],
   archivedOrders: [
     {
+      id: 'ORD-IZM-225987',
       orderDate: '12.08.2024 11:00',
       invoiceNumber: '225987',
       type: 'Şantiye',
       routeType: 'Direkt',
       accountName: 'İzmir Stadyum Projesi',
-      deliveredAt: '18.08.2024 17:40'
+      deliveredAt: '18.08.2024 17:40',
+      finalDestination: 'İzmir Stadyum Projesi Şantiyesi'
     },
     {
+      id: 'ORD-BRS-248991',
       orderDate: '22.09.2024 15:20',
       invoiceNumber: '248991',
       type: 'Müşteri Depo',
       routeType: 'Bölge',
       accountName: 'Bursa Bölge Deposu',
-      deliveredAt: '26.09.2024 09:10'
+      deliveredAt: '26.09.2024 09:10',
+      finalDestination: 'Bursa Bölge Deposu'
     }
   ],
   productCatalog: [
@@ -293,7 +397,9 @@ function bindGlobalActions() {
 
   document.getElementById('orders-table-body').addEventListener('click', handleOrderTableClick);
   document.getElementById('order-detail').addEventListener('click', handleOrderDetailAction);
-  document.getElementById('incoming-list').addEventListener('change', handleIncomingAction);
+  const incomingList = document.getElementById('incoming-list');
+  incomingList.addEventListener('change', handleIncomingAction);
+  incomingList.addEventListener('click', handleIncomingAction);
   document.getElementById('outgoing-list').addEventListener('click', handleOutgoingAction);
   document.getElementById('product-table-body').addEventListener('change', handleProductFactoryChange);
 }
@@ -506,15 +612,36 @@ function renderOrderDetail() {
 
   const mapFigure = fragment.querySelector('[data-field="map"]');
   if (mapFigure) {
+    const routeMap = order.routeMap ?? {};
+    const markers = [
+      createMarkerMarkup(routeMap.start, 'start'),
+      createMarkerMarkup(routeMap.consolidation, 'merge'),
+      createMarkerMarkup(routeMap.final, 'final')
+    ]
+      .filter(Boolean)
+      .join('');
+
+    const overlayLines = [];
+    if (routeMap.start?.province) {
+      overlayLines.push(`Çıkış: ${routeMap.start.province}`);
+    }
+    if (routeMap.consolidation?.province) {
+      overlayLines.push(`Birleştirme: ${routeMap.consolidation.province}`);
+    }
+    overlayLines.push(`Son Durak: ${routeMap.final?.province ?? finalStop}`);
+
     mapFigure.innerHTML = `
-      <img
-        src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png"
-        alt="Türkiye iller haritası"
-        class="map-image"
-      />
-      <div class="map-overlay">
-        <strong>${finalStop}</strong>
-        <span>${order.currentLocation || 'Kaynak'} çıkışlı sevkiyat</span>
+      <div class="map-figure-inner">
+        <img
+          src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png"
+          alt="Türkiye iller haritası"
+          class="map-image"
+        />
+        <div class="map-marker-layer">${markers}</div>
+        <div class="map-overlay">
+          <strong>${finalStop}</strong>
+          ${overlayLines.map((line) => `<span>${line}</span>`).join('')}
+        </div>
       </div>
     `;
   }
@@ -545,7 +672,7 @@ function renderOrderDetail() {
   }
 
   fragment
-    .querySelectorAll('[data-action="add-status"], [data-action="add-estimate"]')
+    .querySelectorAll('[data-action="add-estimate"]')
     .forEach((button) => {
       button.dataset.orderId = order.id;
     });
@@ -630,6 +757,7 @@ function renderArchive() {
       <td>${order.type}</td>
       <td>${order.routeType}</td>
       <td>${order.accountName}</td>
+      <td>${order.finalDestination ?? '-'}</td>
       <td>${order.deliveredAt}</td>
     `;
     tbody.appendChild(tr);
@@ -713,6 +841,9 @@ function renderHatManagement() {
     incomingStages.forEach(({ order, stage }) => {
       const card = document.createElement('div');
       card.className = 'hat-card';
+      if (stage.shortageFlagged) {
+        card.classList.add('shortage');
+      }
       card.innerHTML = `
         <div class="hat-card-header">
           <strong>${order.id}</strong>
@@ -722,6 +853,15 @@ function renderHatManagement() {
         <span>Planlanan Varış: ${stage.plannedArrival}</span>
         <span>Ürün Notu: ${stage.note}</span>
       `;
+      if (stage.shortageFlagged) {
+        const header = card.querySelector('.hat-card-header');
+        if (header) {
+          const shortageBadge = document.createElement('span');
+          shortageBadge.className = 'badge warning';
+          shortageBadge.textContent = 'Eksik Ürün';
+          header.appendChild(shortageBadge);
+        }
+      }
       const actions = document.createElement('div');
       actions.className = 'hat-card-actions';
 
@@ -736,6 +876,19 @@ function renderHatManagement() {
       input.disabled = stage.progress < 2;
       checkbox.append(input, document.createTextNode('Onay'));
       actions.appendChild(checkbox);
+
+      const shortageBtn = document.createElement('button');
+      shortageBtn.type = 'button';
+      shortageBtn.className = 'btn warning small';
+      shortageBtn.dataset.action = 'report-shortage';
+      shortageBtn.dataset.stageId = stage.id;
+      shortageBtn.dataset.orderId = order.id;
+      shortageBtn.textContent = 'Eksik Ürün';
+      shortageBtn.disabled = stage.progress < 2 || stage.shortageFlagged;
+      if (shortageBtn.disabled && !stage.shortageFlagged) {
+        shortageBtn.title = 'Eksik ürün bildirimi için sevkiyatın ambara giriş yapması gerekir.';
+      }
+      actions.appendChild(shortageBtn);
 
       card.appendChild(actions);
       incomingContainer.appendChild(card);
@@ -837,18 +990,6 @@ function handleOrderDetailAction(event) {
   const orderId = event.target.dataset.orderId ?? state.activeOrderId;
   const stageId = event.target.dataset.stageId;
 
-  if (action === 'add-status') {
-    const note = window.prompt('Yeni sevk durumu notunu girin:');
-    if (note) {
-      const order = state.orders.find((item) => item.id === orderId);
-      if (order) {
-        addHistory(order, note);
-        renderAll();
-      }
-    }
-    return;
-  }
-
   if (action === 'add-estimate') {
     const estimate = window.prompt('Tahmini teslimat zamanını girin (GG.AA.YYYY SS:DD):');
     if (estimate) {
@@ -935,13 +1076,23 @@ function handleOrderDetailAction(event) {
 
 function handleIncomingAction(event) {
   const target = event.target;
-  if (target.dataset.action !== 'approve-stage') {
+  const action = target.dataset.action;
+  if (!action) {
     return;
   }
 
   const { orderId, stageId } = target.dataset;
-  if (target.checked) {
-    completeStage(orderId, stageId);
+
+  if (action === 'approve-stage' && event.type === 'change') {
+    if (target.checked) {
+      completeStage(orderId, stageId);
+    }
+    return;
+  }
+
+  if (action === 'report-shortage' && event.type === 'click') {
+    event.preventDefault();
+    reportStageShortage(orderId, stageId);
   }
 }
 
@@ -1001,7 +1152,7 @@ function openModal(type) {
       </div>
       <div class="form-group">
         <label>Hat Tipi</label>
-        <select name="routeType" required>
+        <select name="routeType" required data-route-select>
           <option value="Direkt">Direkt</option>
           <option value="Bölge">Bölge</option>
           <option value="Birleştirme">Birleştirme</option>
@@ -1013,20 +1164,55 @@ function openModal(type) {
       </div>
       <div class="form-group">
         <label>Çıkış Fabrikası</label>
-        <select name="startFactory" required>
+        <select name="startFactory" required data-start-factory>
           ${state.factories.map((factory) => `<option value="${factory.id}">${factory.name}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
-        <label>Birleştirme Fabrikası (opsiyonel)</label>
-        <select name="consolidationFactory">
+        <label>Birleştirme Fabrikası</label>
+        <select name="consolidationFactory" data-consolidation-factory>
           <option value="">Seçiniz</option>
           ${state.factories.map((factory) => `<option value="${factory.id}">${factory.name}</option>`).join('')}
         </select>
       </div>
+      <div class="form-section location-section">
+        <div class="form-section-header">
+          <h4>Güzergah Haritası</h4>
+          <p class="form-hint">Haritaya tıklayarak durakları seçin.</p>
+        </div>
+        <div class="location-targets">
+          <label class="location-radio">
+            <input type="radio" name="locationTarget" value="start" checked />
+            <span>Çıkış İli</span>
+          </label>
+          <label class="location-radio consolidation-only" data-consolidation-toggle>
+            <input type="radio" name="locationTarget" value="consolidation" />
+            <span>Birleştirme</span>
+          </label>
+          <label class="location-radio">
+            <input type="radio" name="locationTarget" value="final" />
+            <span>Son Durak</span>
+          </label>
+        </div>
+        <div class="map-selector" data-map-selector>
+          <img src="https://www.paintmaps.com/countries/IMG/turkey-provinces-outline.png" alt="Türkiye haritası" />
+          <div class="map-marker-layer" data-map-markers></div>
+        </div>
+        <div class="location-summary">
+          <div><strong>Çıkış:</strong> <span data-summary-start>-</span></div>
+          <div class="consolidation-summary" data-consolidation-summary><strong>Birleştirme:</strong> <span data-summary-consolidation>-</span></div>
+          <div><strong>Son Durak:</strong> <span data-summary-final>-</span></div>
+        </div>
+        <input type="hidden" name="startProvince" />
+        <input type="hidden" name="consolidationProvince" />
+        <input type="hidden" name="finalProvince" />
+        <input type="hidden" name="startCoordinates" />
+        <input type="hidden" name="consolidationCoordinates" />
+        <input type="hidden" name="finalCoordinates" />
+      </div>
       <div class="form-group">
         <label>Son Varış Konumu</label>
-        <input type="text" name="finalDestination" required placeholder="Örn. Hatay Şantiye" />
+        <input type="text" name="finalDestination" required placeholder="Örn. Hatay Şantiye" data-final-destination-input />
       </div>
       <div class="form-group">
         <label>Tahmini Teslimat</label>
@@ -1107,6 +1293,7 @@ function openModal(type) {
   }
   if (type === 'order') {
     initializeOrderFormProducts(form);
+    initializeOrderFormMap(form);
   }
   modal.classList.remove('hidden');
 }
@@ -1192,6 +1379,271 @@ function initializeOrderFormProducts(form) {
   addRow();
 }
 
+function initializeOrderFormMap(form) {
+  const routeSelect = form.querySelector('[data-route-select]');
+  const startFactorySelect = form.querySelector('[data-start-factory]');
+  const consolidationFactorySelect = form.querySelector('[data-consolidation-factory]');
+  const mapSelector = form.querySelector('[data-map-selector]');
+  const markersLayer = form.querySelector('[data-map-markers]');
+  const targetRadios = Array.from(form.querySelectorAll('input[name="locationTarget"]'));
+  const summaryLabels = {
+    start: form.querySelector('[data-summary-start]'),
+    consolidation: form.querySelector('[data-summary-consolidation]'),
+    final: form.querySelector('[data-summary-final]')
+  };
+  const summaryContainers = {
+    consolidation: form.querySelector('[data-consolidation-summary]')
+  };
+  const hiddenInputs = {
+    start: form.querySelector('input[name="startProvince"]'),
+    consolidation: form.querySelector('input[name="consolidationProvince"]'),
+    final: form.querySelector('input[name="finalProvince"]')
+  };
+  const coordinateInputs = {
+    start: form.querySelector('input[name="startCoordinates"]'),
+    consolidation: form.querySelector('input[name="consolidationCoordinates"]'),
+    final: form.querySelector('input[name="finalCoordinates"]')
+  };
+  const consolidationToggle = form.querySelector('[data-consolidation-toggle]');
+  const finalDestinationInput = form.querySelector('[data-final-destination-input]');
+
+  if (!mapSelector || !markersLayer) {
+    return;
+  }
+
+  const provinceOptionsMarkup = provinceOptions
+    .map((province) => `<option value="${province}">${province}</option>`)
+    .join('');
+
+  const selections = {
+    start: null,
+    consolidation: null,
+    final: null
+  };
+
+  let activeTarget = 'start';
+  let pickerElement = null;
+
+  const setActiveTarget = (value) => {
+    activeTarget = value;
+  };
+
+  const updateTargetStyles = () => {
+    targetRadios.forEach((radio) => {
+      const wrapper = radio.closest('.location-radio');
+      if (wrapper) {
+        wrapper.classList.toggle('active', radio.checked);
+      }
+    });
+  };
+
+  const closePicker = () => {
+    if (pickerElement) {
+      pickerElement.remove();
+      pickerElement = null;
+    }
+  };
+
+  const renderMarkers = () => {
+    const html = [
+      createMarkerMarkup(selections.start, 'start'),
+      createMarkerMarkup(selections.consolidation, 'merge'),
+      createMarkerMarkup(selections.final, 'final')
+    ]
+      .filter(Boolean)
+      .join('');
+    markersLayer.innerHTML = html;
+  };
+
+  const updateSummary = (target) => {
+    const label = summaryLabels[target];
+    if (!label) {
+      return;
+    }
+    label.textContent = selections[target]?.province ?? '-';
+  };
+
+  const clearSelection = (target) => {
+    selections[target] = null;
+    if (hiddenInputs[target]) {
+      hiddenInputs[target].value = '';
+    }
+    if (coordinateInputs[target]) {
+      coordinateInputs[target].value = '';
+    }
+    updateSummary(target);
+    renderMarkers();
+  };
+
+  const setSelection = (target, province, xPercent, yPercent) => {
+    if (!province) {
+      return;
+    }
+    const position = {
+      x: Number.isFinite(xPercent) ? Number(xPercent.toFixed(2)) : null,
+      y: Number.isFinite(yPercent) ? Number(yPercent.toFixed(2)) : null
+    };
+    selections[target] = { province, position };
+    if (hiddenInputs[target]) {
+      hiddenInputs[target].value = province;
+    }
+    if (coordinateInputs[target]) {
+      coordinateInputs[target].value =
+        position.x !== null && position.y !== null ? `${position.x},${position.y}` : '';
+    }
+    updateSummary(target);
+    renderMarkers();
+
+    if (target === 'final' && finalDestinationInput && finalDestinationInput.dataset.userEdited !== 'true') {
+      finalDestinationInput.value = province;
+      finalDestinationInput.dataset.autofill = 'true';
+    }
+  };
+
+  const toggleConsolidation = (show) => {
+    if (consolidationToggle) {
+      consolidationToggle.classList.toggle('hidden', !show);
+      const radio = consolidationToggle.querySelector('input[type="radio"]');
+      if (radio) {
+        radio.disabled = !show;
+        if (!show && radio.checked) {
+          const firstRadio = targetRadios.find((item) => item.value === 'start');
+          if (firstRadio) {
+            firstRadio.checked = true;
+            setActiveTarget('start');
+            updateTargetStyles();
+          }
+        }
+      }
+    }
+    if (summaryContainers.consolidation) {
+      summaryContainers.consolidation.classList.toggle('hidden', !show);
+    }
+    if (!show) {
+      clearSelection('consolidation');
+      closePicker();
+    }
+    if (consolidationFactorySelect) {
+      consolidationFactorySelect.disabled = !show;
+      if (!show) {
+        consolidationFactorySelect.value = '';
+      }
+    }
+  };
+
+  const openPicker = (xPercent, yPercent) => {
+    closePicker();
+    const picker = document.createElement('div');
+    picker.className = 'map-picker';
+    picker.style.left = `${xPercent}%`;
+    picker.style.top = `${yPercent}%`;
+
+    const select = document.createElement('select');
+    select.innerHTML = `<option value="">İl seçiniz</option>${provinceOptionsMarkup}`;
+    if (selections[activeTarget]?.province) {
+      select.value = selections[activeTarget].province;
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'map-picker-actions';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn primary small';
+    confirmBtn.textContent = 'Kaydet';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn ghost small';
+    cancelBtn.textContent = 'Vazgeç';
+
+    confirmBtn.addEventListener('click', () => {
+      if (!select.value) {
+        window.alert('Lütfen bir il seçin.');
+        return;
+      }
+      setSelection(activeTarget, select.value, xPercent, yPercent);
+      closePicker();
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      closePicker();
+    });
+
+    picker.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    actions.append(confirmBtn, cancelBtn);
+    picker.append(select, actions);
+    mapSelector.appendChild(picker);
+    pickerElement = picker;
+  };
+
+  if (finalDestinationInput) {
+    finalDestinationInput.addEventListener('input', () => {
+      finalDestinationInput.dataset.userEdited = 'true';
+    });
+  }
+
+  targetRadios.forEach((radio) => {
+    radio.addEventListener('change', (event) => {
+      if (event.target.checked) {
+        setActiveTarget(event.target.value);
+        updateTargetStyles();
+      }
+    });
+  });
+
+  mapSelector.addEventListener('click', (event) => {
+    if (event.target.closest('.map-picker')) {
+      return;
+    }
+    const rect = mapSelector.getBoundingClientRect();
+    const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
+    const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+    openPicker(xPercent, yPercent);
+  });
+
+  if (routeSelect) {
+    routeSelect.addEventListener('change', () => {
+      const isMerge = routeSelect.value === 'Birleştirme';
+      toggleConsolidation(isMerge);
+      updateTargetStyles();
+    });
+    toggleConsolidation(routeSelect.value === 'Birleştirme');
+  } else {
+    toggleConsolidation(false);
+  }
+
+  if (startFactorySelect) {
+    startFactorySelect.addEventListener('change', () => {
+      if (selections.start) {
+        return;
+      }
+      const factory = state.factories.find((item) => item.id === startFactorySelect.value);
+      if (factory && summaryLabels.start && hiddenInputs.start && !hiddenInputs.start.value) {
+        summaryLabels.start.textContent = factory.city;
+      }
+    });
+  }
+
+  if (consolidationFactorySelect) {
+    consolidationFactorySelect.addEventListener('change', () => {
+      if (selections.consolidation) {
+        return;
+      }
+      const factory = state.factories.find((item) => item.id === consolidationFactorySelect.value);
+      if (factory && summaryLabels.consolidation && hiddenInputs.consolidation && !hiddenInputs.consolidation.value) {
+        summaryLabels.consolidation.textContent = factory.city;
+      }
+    });
+  }
+
+  renderMarkers();
+  updateTargetStyles();
+}
+
 function handleModalSubmit(event) {
   event.preventDefault();
   const form = event.target;
@@ -1222,11 +1674,41 @@ function addOrderFromForm(formData) {
   const accountName = formData.get('accountName');
   const startFactory = state.factories.find((factory) => factory.id === formData.get('startFactory'));
   const consolidationFactoryId = formData.get('consolidationFactory');
-  const consolidationFactory = state.factories.find((factory) => factory.id === consolidationFactoryId);
-  const finalDestination = formData.get('finalDestination');
+  const consolidationFactory = routeType === 'Birleştirme' && consolidationFactoryId
+    ? state.factories.find((factory) => factory.id === consolidationFactoryId)
+    : null;
+  const startProvince = (formData.get('startProvince') || '').trim();
+  const consolidationProvinceInput = (formData.get('consolidationProvince') || '').trim();
+  const finalProvince = (formData.get('finalProvince') || '').trim();
+  const finalDestinationInput = (formData.get('finalDestination') || '').trim();
   const estimatedDeliveryInput = formData.get('estimatedDelivery');
-  const estimatedDelivery = estimatedDeliveryInput ? formatDateFromInput(estimatedDeliveryInput) : '';
   const note = formData.get('note') || '';
+
+  const startCoordinates = parseCoordinateInput(formData.get('startCoordinates'));
+  const consolidationCoordinates = parseCoordinateInput(formData.get('consolidationCoordinates'));
+  const finalCoordinates = parseCoordinateInput(formData.get('finalCoordinates'));
+
+  if (!startFactory) {
+    window.alert('Çıkış fabrikasını seçmelisiniz.');
+    return false;
+  }
+
+  if (!startProvince || !finalProvince) {
+    window.alert('Çıkış ve son durak illerini haritadan seçmelisiniz.');
+    return false;
+  }
+
+  if (routeType === 'Birleştirme' && !consolidationFactoryId) {
+    window.alert('Birleştirme hatlarında birleştirme fabrikasını seçmelisiniz.');
+    return false;
+  }
+
+  const isMergeRoute = Boolean(routeType === 'Birleştirme' && consolidationFactory);
+
+  if (isMergeRoute && !consolidationProvinceInput) {
+    window.alert('Birleştirme güzergahı için haritadan birleştirme ilini seçmelisiniz.');
+    return false;
+  }
 
   const productCodes = formData.getAll('productCode[]');
   const productQuantities = formData.getAll('productQty[]');
@@ -1258,54 +1740,90 @@ function addOrderFromForm(formData) {
     return false;
   }
 
+  const timeline = calculateEstimatedTimeline(orderDate, routeType, isMergeRoute);
+  const computedEstimatedDelivery = estimatedDeliveryInput
+    ? formatDateFromInput(estimatedDeliveryInput)
+    : timeline.final;
+
+  const finalDestination = finalDestinationInput || finalProvince;
+
+  const routeMap = {
+    start: startProvince ? { province: startProvince, position: startCoordinates } : null,
+    consolidation: isMergeRoute && consolidationProvinceInput
+      ? { province: consolidationProvinceInput, position: consolidationCoordinates }
+      : null,
+    final: finalProvince ? { province: finalProvince, position: finalCoordinates } : null
+  };
+
   const newOrderId = generateOrderId();
+  const consolidationLabel = consolidationFactory?.name ?? consolidationProvinceInput;
+  const finalLabel = finalDestination || finalProvince;
+  const startLabel = startFactory?.name ?? startProvince;
+
   const newOrder = {
     id: newOrderId,
+    revisionOf: getBaseOrderId(newOrderId),
     orderDate,
     invoiceNumber,
     type,
     routeType,
     accountName,
-    currentLocation: startFactory?.name ?? '-',
-    nextLocation: consolidationFactory ? consolidationFactory.name : finalDestination,
-    estimatedDelivery: estimatedDelivery || '- Tahmini bekleniyor -',
+    currentLocation: startLabel,
+    nextLocation: isMergeRoute ? consolidationLabel : finalLabel,
+    estimatedDelivery: computedEstimatedDelivery || timeline.final || '- Tahmini bekleniyor -',
     lastUpdate: orderDate,
-    finalDestination: finalDestination || '-',
+    finalDestination: finalLabel || '-',
     statusHistory: [],
     products,
-    stages: []
+    stages: [],
+    routeMap
   };
 
   newOrder.statusHistory.push({
     timestamp: orderDate,
-    note: `${startFactory?.name ?? 'Belirsiz'}: Sipariş oluşturuldu.`
+    note: `${startLabel}: Sipariş oluşturuldu.`
   });
+
+  const timelineSegments = [];
+  if (timeline.firstLeg?.arrival) {
+    const firstStopLabel = isMergeRoute ? consolidationLabel : finalLabel;
+    timelineSegments.push(`${startProvince || startLabel} → ${firstStopLabel} ${extractDate(timeline.firstLeg.arrival)}`);
+  }
+  if (timeline.secondLeg?.arrival) {
+    timelineSegments.push(`${consolidationProvinceInput || consolidationLabel} → ${finalProvince || finalLabel} ${extractDate(timeline.secondLeg.arrival)}`);
+  }
+  if (timelineSegments.length > 0) {
+    newOrder.statusHistory.push({
+      timestamp: orderDate,
+      note: `Termin Planı: ${timelineSegments.join(' • ')}`
+    });
+  }
 
   const firstStage = {
     id: `${newOrderId}-1`,
-    from: startFactory?.name ?? 'Belirtilmedi',
-    to: consolidationFactory ? consolidationFactory.name : finalDestination,
-    plannedStart: extractDate(orderDate),
-    plannedArrival: consolidationFactory ? extractDate(orderDate) : (estimatedDelivery || '-'),
+    from: startLabel || 'Belirtilmedi',
+    to: isMergeRoute ? consolidationLabel : finalLabel,
+    plannedStart: extractDate(timeline.firstLeg?.start ?? orderDate),
+    plannedArrival: extractDate(timeline.firstLeg?.arrival ?? computedEstimatedDelivery ?? orderDate),
     transport: 'Tır',
     note: note || 'Yeni sevkiyat planı oluşturuldu.',
-    responsible: `${startFactory?.name ?? 'Fabrika'} Lojistik`,
+    responsible: `${startLabel || 'Fabrika'} Lojistik`,
     progress: 0,
     status: stageStatuses[0],
     completed: false
   };
   newOrder.stages.push(firstStage);
 
-  if (consolidationFactory) {
+  if (isMergeRoute) {
     const secondStage = {
       id: `${newOrderId}-2`,
-      from: consolidationFactory.name,
-      to: finalDestination,
-      plannedStart: extractDate(orderDate),
-      plannedArrival: estimatedDelivery || '-',
+      from: consolidationLabel || 'Birleştirme Noktası',
+      to: finalLabel,
+      plannedStart: extractDate(timeline.secondLeg?.start ?? timeline.firstLeg?.arrival ?? orderDate),
+      plannedArrival: extractDate(timeline.secondLeg?.arrival ?? computedEstimatedDelivery ?? orderDate),
       transport: 'Tır',
       note: 'Birleştirme sonrası sevkiyat.',
-      responsible: `${consolidationFactory.name} Sevkiyat`,
+      responsible: `${consolidationLabel || 'Birleştirme'} Sevkiyat`,
       progress: 0,
       status: stageStatuses[0],
       completed: false
@@ -1384,11 +1902,17 @@ function advanceStage(orderId, stageId) {
     return;
   }
 
-  setStageProgress(order, stage, nextProgress);
+  const { orderCompleted, timestamp } = setStageProgress(order, stage, nextProgress);
 
   const note = progressNote(stage, nextProgress);
   if (note) {
     addHistory(order, note);
+  }
+
+  if (orderCompleted) {
+    archiveOrder(order, timestamp);
+    renderAll();
+    return;
   }
 
   updateOrderFlow(order);
@@ -1409,8 +1933,15 @@ function dispatchStage(orderId, stageId) {
     return;
   }
 
-  setStageProgress(order, stage, 2);
+  const { orderCompleted, timestamp } = setStageProgress(order, stage, 2);
   addHistory(order, `${stage.from}: Sevkiyat yola çıktı.`);
+
+  if (orderCompleted) {
+    archiveOrder(order, timestamp);
+    renderAll();
+    return;
+  }
+
   updateOrderFlow(order);
   renderAll();
 }
@@ -1429,8 +1960,15 @@ function completeStage(orderId, stageId) {
     return;
   }
 
-  setStageProgress(order, stage, 3);
+  const { orderCompleted, timestamp } = setStageProgress(order, stage, 3);
   addHistory(order, `${stage.to}: Giriş onayı verildi.`);
+
+  if (orderCompleted) {
+    archiveOrder(order, timestamp);
+    renderAll();
+    return;
+  }
+
   updateOrderFlow(order);
   renderAll();
 }
@@ -1438,20 +1976,206 @@ function completeStage(orderId, stageId) {
 function dispatchAllFromWarehouse() {
   const activeWarehouse = state.activeWarehouse;
   let updated = false;
-  state.orders.forEach((order) => {
+  state.orders.slice().forEach((order) => {
+    let archived = false;
     order.stages.forEach((stage) => {
+      if (archived) {
+        return;
+      }
       if (stage.from === activeWarehouse && stage.progress < 2) {
-        setStageProgress(order, stage, 2);
+        const { orderCompleted, timestamp } = setStageProgress(order, stage, 2);
         addHistory(order, `${stage.from}: Sevkiyat toplu gönderildi.`);
         updated = true;
+        if (orderCompleted) {
+          archiveOrder(order, timestamp);
+          archived = true;
+        }
       }
     });
-    updateOrderFlow(order);
+    if (!archived && state.orders.includes(order)) {
+      updateOrderFlow(order);
+    }
   });
 
   if (updated) {
     renderAll();
   }
+}
+
+function reportStageShortage(orderId, stageId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    return;
+  }
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage) {
+    return;
+  }
+
+  if (stage.shortageFlagged) {
+    window.alert('Bu sevkiyat için eksik ürün bildirimi zaten yapılmış.');
+    return;
+  }
+
+  const input = window.prompt(
+    'Eksik ürünleri Kod:Adet formatında girin. Örnek: MET-001:10, PVC-063:5'
+  );
+  if (!input) {
+    return;
+  }
+
+  const shortageItems = parseShortageInput(input, order.products);
+  if (shortageItems.length === 0) {
+    window.alert('Eksik ürün bilgisi okunamadı. Kod:Adet formatını kullanın.');
+    return;
+  }
+
+  stage.shortageFlagged = true;
+  stage.shortages = stage.shortages || [];
+  stage.shortages.push({ timestamp: formatNow(), items: shortageItems });
+
+  const summary = shortageItems.map((item) => `${item.code} x${item.qty}`).join(', ');
+  addHistory(order, `${stage.to}: Eksik ürün bildirimi - ${summary}`);
+
+  const revisionOrder = createShortageOrder(order, stage, shortageItems);
+  addHistory(order, `${stage.to}: Eksik ürünler için ${revisionOrder.id} revizyonu açıldı.`);
+
+  window.alert('Eksik ürünler için yeni bir revizyon siparişi oluşturuldu.');
+  renderAll();
+}
+
+function parseShortageInput(input, products) {
+  if (!input) {
+    return [];
+  }
+  return input
+    .split(',')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const [codePart, qtyPart] = chunk.split(':').map((part) => part.trim());
+      if (!codePart || !qtyPart) {
+        return null;
+      }
+      const normalizedCode = codePart.toUpperCase();
+      const quantity = Number(qtyPart.replace(',', '.'));
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return null;
+      }
+      const matchedProduct = products.find(
+        (product) => product.code.toUpperCase() === normalizedCode
+      );
+      return {
+        code: matchedProduct?.code ?? normalizedCode,
+        name: matchedProduct?.name ?? 'Tanımsız Ürün',
+        qty: quantity,
+        origin: matchedProduct?.origin ?? '-'
+      };
+    })
+    .filter(Boolean);
+}
+
+function createShortageOrder(order, stage, shortageItems) {
+  const baseOrderId = order.revisionOf ?? getBaseOrderId(order.id);
+  order.revisionOf = baseOrderId;
+  const revisionId = generateRevisionId(order.id);
+  const now = formatNow();
+  const hasConsolidation = order.stages.length > 1;
+  const timeline = calculateEstimatedTimeline(now, order.routeType, hasConsolidation);
+
+  const revisionOrder = {
+    id: revisionId,
+    revisionOf: baseOrderId,
+    orderDate: now,
+    invoiceNumber: generateInvoiceNumber(),
+    type: order.type,
+    routeType: order.routeType,
+    accountName: order.accountName,
+    currentLocation: order.stages[0]?.from ?? order.currentLocation,
+    nextLocation: order.stages[0]?.to ?? order.nextLocation,
+    estimatedDelivery: timeline.final || order.estimatedDelivery,
+    lastUpdate: now,
+    finalDestination: order.finalDestination,
+    statusHistory: [],
+    products: shortageItems.map((item) => ({
+      code: item.code,
+      name: item.name,
+      qty: item.qty,
+      origin: item.origin
+    })),
+    stages: [],
+    routeMap: order.routeMap ? JSON.parse(JSON.stringify(order.routeMap)) : undefined
+  };
+
+  revisionOrder.statusHistory.push({
+    timestamp: now,
+    note: `${revisionOrder.currentLocation}: Revizyon siparişi oluşturuldu.`
+  });
+
+  const timelineSegments = [];
+  if (timeline.firstLeg?.arrival) {
+    timelineSegments.push(
+      `${revisionOrder.currentLocation} → ${revisionOrder.nextLocation} ${extractDate(timeline.firstLeg.arrival)}`
+    );
+  }
+  if (timeline.secondLeg?.arrival && hasConsolidation) {
+    timelineSegments.push(
+      `${revisionOrder.nextLocation} → ${revisionOrder.finalDestination} ${extractDate(timeline.secondLeg.arrival)}`
+    );
+  }
+  if (timelineSegments.length > 0) {
+    revisionOrder.statusHistory.push({
+      timestamp: now,
+      note: `Termin Planı: ${timelineSegments.join(' • ')}`
+    });
+  }
+
+  revisionOrder.statusHistory.push({
+    timestamp: now,
+    note: `Eksik ürün listesi: ${shortageItems
+      .map((item) => `${item.code} x${item.qty}`)
+      .join(', ')}`
+  });
+
+  const stagePlans = order.stages.length
+    ? order.stages.map((originalStage, index) => {
+        const legTimeline = index === 0 ? timeline.firstLeg : timeline.secondLeg ?? timeline.firstLeg;
+        return {
+          id: `${revisionId}-${index + 1}`,
+          from: originalStage.from,
+          to: originalStage.to,
+          plannedStart: extractDate(legTimeline?.start ?? now),
+          plannedArrival: extractDate(legTimeline?.arrival ?? timeline.final ?? now),
+          transport: originalStage.transport,
+          note: `${originalStage.note} (Eksik ürün)`,
+          responsible: originalStage.responsible,
+          progress: 0,
+          status: stageStatuses[0],
+          completed: false
+        };
+      })
+    : [
+        {
+          id: `${revisionId}-1`,
+          from: order.currentLocation,
+          to: order.finalDestination,
+          plannedStart: extractDate(now),
+          plannedArrival: extractDate(timeline.final ?? now),
+          transport: 'Tır',
+          note: 'Eksik ürün sevkiyat planı.',
+          responsible: `${order.currentLocation} Lojistik`,
+          progress: 0,
+          status: stageStatuses[0],
+          completed: false
+        }
+      ];
+
+  revisionOrder.stages = stagePlans;
+
+  updateOrderFlow(revisionOrder);
+  state.orders.unshift(revisionOrder);
+  state.activeOrderId = revisionOrder.id;
+  return revisionOrder;
 }
 
 function setStageProgress(order, stage, progress) {
@@ -1461,6 +2185,8 @@ function setStageProgress(order, stage, progress) {
   const timestamp = formatNow();
   order.lastUpdate = timestamp;
   updateWarehouseReceipts(order, stage, timestamp);
+  const orderCompleted = order.stages.every((item) => item.completed);
+  return { timestamp, orderCompleted };
 }
 
 function progressNote(stage, progress) {
@@ -1533,6 +2259,38 @@ function updateWarehouseReceipts(order, stage, deliveredTimestamp = null) {
   }
 }
 
+function archiveOrder(order, deliveredAt) {
+  if (!order) {
+    return;
+  }
+
+  const archiveEntry = {
+    id: order.id,
+    orderDate: order.orderDate,
+    invoiceNumber: order.invoiceNumber,
+    type: order.type,
+    routeType: order.routeType,
+    accountName: order.accountName,
+    deliveredAt: deliveredAt ?? formatNow()
+  };
+
+  if (order.finalDestination) {
+    archiveEntry.finalDestination = order.finalDestination;
+  }
+
+  state.archivedOrders.unshift(archiveEntry);
+  order.stages.forEach((stage) => removeStageReceipt(stage.id));
+
+  const index = state.orders.findIndex((item) => item.id === order.id);
+  if (index > -1) {
+    state.orders.splice(index, 1);
+  }
+
+  if (state.activeOrderId === order.id) {
+    state.activeOrderId = state.orders[0]?.id ?? null;
+  }
+}
+
 function removeStageReceipt(stageId) {
   Object.keys(state.warehouseReceipts).forEach((key) => {
     const list = state.warehouseReceipts[key];
@@ -1544,6 +2302,56 @@ function removeStageReceipt(stageId) {
       list.splice(index, 1);
     }
   });
+}
+
+function parseCoordinateInput(value) {
+  if (!value) {
+    return null;
+  }
+  const [xPart, yPart] = value.split(',');
+  const x = Number(xPart);
+  const y = Number(yPart);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+}
+
+function createMarkerMarkup(routePoint, type) {
+  if (!routePoint || !routePoint.province) {
+    return '';
+  }
+  const coordinates = routePoint.position;
+  if (!coordinates || !Number.isFinite(coordinates.x) || !Number.isFinite(coordinates.y)) {
+    return '';
+  }
+  return `
+    <span class="map-marker ${type}" style="left:${coordinates.x}%; top:${coordinates.y}%">
+      <span>${routePoint.province}</span>
+    </span>
+  `;
+}
+
+function getBaseOrderId(orderId) {
+  return orderId.replace(/-REV\d+$/, '');
+}
+
+function generateRevisionId(orderId) {
+  const baseId = getBaseOrderId(orderId);
+  let highest = 0;
+  state.orders.forEach((item) => {
+    const candidateBase = getBaseOrderId(item.id);
+    if (candidateBase !== baseId) {
+      return;
+    }
+    const match = item.id.match(/-REV(\d+)$/);
+    if (match) {
+      highest = Math.max(highest, Number(match[1]));
+    } else if (item.id === baseId) {
+      highest = Math.max(highest, 0);
+    }
+  });
+  return `${baseId}-REV${highest + 1}`;
 }
 
 function formatDateFromInput(input) {
@@ -1589,6 +2397,82 @@ function toDateTimeLocalValue(displayValue) {
 
 function extractDate(dateString) {
   return dateString?.split(' ')[0] ?? '';
+}
+
+function parseDisplayDate(displayValue) {
+  if (!displayValue) {
+    return null;
+  }
+  const [datePart, timePart] = displayValue.split(' ');
+  if (!datePart) {
+    return null;
+  }
+  const [day, month, year] = datePart.split('.').map(Number);
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return null;
+  }
+  let hour = 0;
+  let minute = 0;
+  if (timePart) {
+    const [hourPart, minutePart] = timePart.split(':').map(Number);
+    if (Number.isFinite(hourPart)) {
+      hour = hourPart;
+    }
+    if (Number.isFinite(minutePart)) {
+      minute = minutePart;
+    }
+  }
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function addDays(date, days) {
+  const result = new Date(date.getTime());
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function calculateEstimatedTimeline(orderDate, routeType, hasConsolidation) {
+  const baseDate = parseDisplayDate(orderDate) ?? new Date();
+  const profiles = {
+    Direkt: { firstLeg: 5, buffer: 0, secondLeg: 0 },
+    Bölge: { firstLeg: 4, buffer: 0, secondLeg: 0 },
+    Birleştirme: { firstLeg: 3, buffer: 1, secondLeg: 4 }
+  };
+  const profile = profiles[routeType] ?? profiles.Direkt;
+
+  const firstLegDays = Number.isFinite(profile.firstLeg) ? profile.firstLeg : 5;
+  const bufferDays = hasConsolidation ? (Number.isFinite(profile.buffer) ? profile.buffer : 1) : 0;
+  const secondLegDays = hasConsolidation ? (Number.isFinite(profile.secondLeg) ? profile.secondLeg : 4) : 0;
+
+  const firstLegStartDate = baseDate;
+  const firstLegArrivalDate = addDays(firstLegStartDate, firstLegDays);
+
+  const timeline = {
+    firstLeg: {
+      start: formatDisplayDate(firstLegStartDate),
+      arrival: formatDisplayDate(firstLegArrivalDate)
+    },
+    secondLeg: null,
+    final: ''
+  };
+
+  if (hasConsolidation) {
+    const secondLegStartDate = addDays(firstLegArrivalDate, bufferDays);
+    const secondLegArrivalDate = addDays(secondLegStartDate, secondLegDays);
+    timeline.secondLeg = {
+      start: formatDisplayDate(secondLegStartDate),
+      arrival: formatDisplayDate(secondLegArrivalDate)
+    };
+    timeline.final = formatDisplayDate(secondLegArrivalDate);
+  } else {
+    timeline.final = formatDisplayDate(firstLegArrivalDate);
+  }
+
+  return timeline;
 }
 
 function formatDisplayDate(date) {

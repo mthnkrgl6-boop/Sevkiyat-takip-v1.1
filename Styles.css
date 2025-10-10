@@ -231,6 +231,22 @@ body {
   color: var(--accent-dark);
 }
 
+.btn.warning {
+  background: #f7c45a;
+  color: #704b00;
+  box-shadow: 0 12px 24px rgba(247, 196, 90, 0.25);
+}
+
+.btn.warning:hover {
+  background: #f0b02e;
+}
+
+.btn.warning:disabled {
+  background: #f5ddb0;
+  color: rgba(112, 75, 0, 0.55);
+  box-shadow: none;
+}
+
 .icon-btn {
   border: none;
   background: #fff;
@@ -381,15 +397,30 @@ body {
   position: relative;
   overflow: hidden;
   display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.map-figure-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
 }
 
 .map-image {
   width: 100%;
   height: auto;
   object-fit: contain;
+}
+
+.map-marker-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .map-overlay {
@@ -411,6 +442,41 @@ body {
 
 .map-overlay strong {
   font-size: 14px;
+}
+
+.map-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+
+.map-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  border-style: solid;
+  border-width: 6px 6px 0 6px;
+  border-color: currentColor transparent transparent transparent;
+}
+
+.map-marker.start {
+  background: var(--accent);
+}
+
+.map-marker.merge {
+  background: #2d6cdf;
+}
+
+.map-marker.final {
+  background: #39a55c;
 }
 
 .map-details p {
@@ -466,6 +532,11 @@ body {
   font-weight: 600;
 }
 
+.badge.warning {
+  background: rgba(247, 196, 90, 0.25);
+  color: #8a5a00;
+}
+
 .hat-list {
   display: flex;
   flex-direction: column;
@@ -517,6 +588,16 @@ body {
 .hat-card.delivered .badge {
   background: rgba(66, 140, 103, 0.2);
   color: #2f6b4c;
+}
+
+.hat-card.shortage {
+  background: #fff4e1;
+  box-shadow: inset 0 0 0 1px rgba(247, 196, 90, 0.4);
+}
+
+.hat-card.shortage .badge.warning {
+  background: rgba(247, 196, 90, 0.3);
+  color: #8a5a00;
 }
 
 .hat-card-actions {
@@ -612,6 +693,109 @@ body {
   margin: 0;
   font-size: 15px;
   color: var(--accent-dark);
+}
+
+.location-section {
+  background: #fff7ec;
+  border: 1px solid rgba(211, 134, 53, 0.2);
+}
+
+.location-targets {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.location-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(211, 134, 53, 0.25);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  cursor: pointer;
+}
+
+.location-radio input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.location-radio input:disabled + span {
+  opacity: 0.45;
+}
+
+.location-radio.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(216, 137, 60, 0.2);
+}
+
+.location-radio.active span {
+  color: #fff;
+}
+
+.map-selector {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  min-height: 240px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(211, 134, 53, 0.2);
+  cursor: crosshair;
+}
+
+.map-selector img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.location-summary {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--accent-dark);
+}
+
+.location-summary span {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.map-picker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(220px, 90%);
+  z-index: 5;
+}
+
+.map-picker select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.map-picker-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.map-picker-actions .btn {
+  flex: 1;
 }
 
 .form-hint {
