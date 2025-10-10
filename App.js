@@ -826,42 +826,6 @@ function renderOrderDetail() {
 
   const finalStop = order.finalDestination || order.stages[order.stages.length - 1]?.to || order.nextLocation || '-';
 
-  const mapFigure = fragment.querySelector('[data-field="map"]');
-  if (mapFigure) {
-    const routeMap = order.routeMap ?? {};
-    const markers = [
-      createMarkerMarkup(routeMap.start, 'start'),
-      createMarkerMarkup(routeMap.consolidation, 'merge'),
-      createMarkerMarkup(routeMap.final, 'final')
-    ]
-      .filter(Boolean)
-      .join('');
-
-    const overlayLines = [];
-    if (routeMap.start?.province) {
-      overlayLines.push(`Çıkış: ${routeMap.start.province}`);
-    }
-    if (routeMap.consolidation?.province) {
-      overlayLines.push(`Birleştirme: ${routeMap.consolidation.province}`);
-    }
-    overlayLines.push(`Son Durak: ${routeMap.final?.province ?? finalStop}`);
-
-    mapFigure.innerHTML = `
-      <div class="map-figure-inner">
-        <img
-          src="assets/turkey-map.svg"
-          alt="Türkiye iller haritası"
-          class="map-image"
-        />
-        <div class="map-marker-layer">${markers}</div>
-        <div class="map-overlay">
-          <strong>${finalStop}</strong>
-          ${overlayLines.map((line) => `<span>${line}</span>`).join('')}
-        </div>
-      </div>
-    `;
-  }
-
   const finalDestinationField = fragment.querySelector('[data-field="finalDestination"]');
   if (finalDestinationField) {
     finalDestinationField.textContent = finalStop;
@@ -1537,47 +1501,31 @@ function openModal(type) {
           ${state.factories.map((factory) => `<option value="${factory.id}">${factory.name}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" data-consolidation-group>
         <label>Birleştirme Fabrikası</label>
         <select name="consolidationFactory" data-consolidation-factory>
           <option value="">Seçiniz</option>
           ${state.factories.map((factory) => `<option value="${factory.id}">${factory.name}</option>`).join('')}
         </select>
       </div>
-      <div class="form-section location-section">
-        <div class="form-section-header">
-          <h4>Güzergah Haritası</h4>
-          <p class="form-hint">Haritaya tıklayarak durakları seçin.</p>
-        </div>
-        <div class="location-targets">
-          <label class="location-radio">
-            <input type="radio" name="locationTarget" value="start" checked />
-            <span>Çıkış İli</span>
-          </label>
-          <label class="location-radio consolidation-only" data-consolidation-toggle>
-            <input type="radio" name="locationTarget" value="consolidation" />
-            <span>Birleştirme</span>
-          </label>
-          <label class="location-radio">
-            <input type="radio" name="locationTarget" value="final" />
-            <span>Son Durak</span>
-          </label>
-        </div>
-        <div class="map-selector" data-map-selector>
-          <img src="assets/turkey-map.svg" alt="Türkiye haritası" />
-          <div class="map-marker-layer" data-map-markers></div>
-        </div>
-        <div class="location-summary">
-          <div><strong>Çıkış:</strong> <span data-summary-start>-</span></div>
-          <div class="consolidation-summary" data-consolidation-summary><strong>Birleştirme:</strong> <span data-summary-consolidation>-</span></div>
-          <div><strong>Son Durak:</strong> <span data-summary-final>-</span></div>
-        </div>
-        <input type="hidden" name="startProvince" />
-        <input type="hidden" name="consolidationProvince" />
-        <input type="hidden" name="finalProvince" />
-        <input type="hidden" name="startCoordinates" />
-        <input type="hidden" name="consolidationCoordinates" />
-        <input type="hidden" name="finalCoordinates" />
+      <div class="form-group">
+        <label>Çıkış İli</label>
+        <select name="startProvince" required data-start-province>
+          ${provinceOptions.map((province) => `<option value="${province}">${province}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" data-consolidation-province-group>
+        <label>Birleştirme İli</label>
+        <select name="consolidationProvince" data-consolidation-province>
+          <option value="">Seçiniz</option>
+          ${provinceOptions.map((province) => `<option value="${province}">${province}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Son Durak İli</label>
+        <select name="finalProvince" required data-final-province>
+          ${provinceOptions.map((province) => `<option value="${province}">${province}</option>`).join('')}
+        </select>
       </div>
       <div class="form-group">
         <label>Son Varış Konumu</label>
@@ -1662,7 +1610,7 @@ function openModal(type) {
   }
   if (type === 'order') {
     initializeOrderFormProducts(form);
-    initializeOrderFormMap(form);
+    initializeOrderFormLocations(form);
   }
   modal.classList.remove('hidden');
 }
@@ -1748,269 +1696,75 @@ function initializeOrderFormProducts(form) {
   addRow();
 }
 
-function initializeOrderFormMap(form) {
+function initializeOrderFormLocations(form) {
   const routeSelect = form.querySelector('[data-route-select]');
   const startFactorySelect = form.querySelector('[data-start-factory]');
   const consolidationFactorySelect = form.querySelector('[data-consolidation-factory]');
-  const mapSelector = form.querySelector('[data-map-selector]');
-  const markersLayer = form.querySelector('[data-map-markers]');
-  const targetRadios = Array.from(form.querySelectorAll('input[name="locationTarget"]'));
-  const summaryLabels = {
-    start: form.querySelector('[data-summary-start]'),
-    consolidation: form.querySelector('[data-summary-consolidation]'),
-    final: form.querySelector('[data-summary-final]')
-  };
-  const summaryContainers = {
-    consolidation: form.querySelector('[data-consolidation-summary]')
-  };
-  const hiddenInputs = {
-    start: form.querySelector('input[name="startProvince"]'),
-    consolidation: form.querySelector('input[name="consolidationProvince"]'),
-    final: form.querySelector('input[name="finalProvince"]')
-  };
-  const coordinateInputs = {
-    start: form.querySelector('input[name="startCoordinates"]'),
-    consolidation: form.querySelector('input[name="consolidationCoordinates"]'),
-    final: form.querySelector('input[name="finalCoordinates"]')
-  };
-  const consolidationToggle = form.querySelector('[data-consolidation-toggle]');
-  const finalDestinationInput = form.querySelector('[data-final-destination-input]');
+  const consolidationGroup = form.querySelector('[data-consolidation-group]');
+  const consolidationProvinceGroup = form.querySelector('[data-consolidation-province-group]');
+  const consolidationProvinceSelect = form.querySelector('[data-consolidation-province]');
+  const startProvinceSelect = form.querySelector('[data-start-province]');
+  const finalProvinceSelect = form.querySelector('[data-final-province]');
 
-  if (!mapSelector || !markersLayer) {
-    return;
-  }
-
-  const provinceOptionsMarkup = provinceOptions
-    .map((province) => `<option value="${province}">${province}</option>`)
-    .join('');
-
-  const selections = {
-    start: null,
-    consolidation: null,
-    final: null
-  };
-
-  let activeTarget = 'start';
-  let pickerElement = null;
-
-  const setActiveTarget = (value) => {
-    activeTarget = value;
-  };
-
-  const updateTargetStyles = () => {
-    targetRadios.forEach((radio) => {
-      const wrapper = radio.closest('.location-radio');
-      if (wrapper) {
-        wrapper.classList.toggle('active', radio.checked);
-      }
-    });
-  };
-
-  const closePicker = () => {
-    if (pickerElement) {
-      pickerElement.remove();
-      pickerElement = null;
+  const updateConsolidationVisibility = () => {
+    const isMergeRoute = routeSelect?.value === 'Birleştirme';
+    if (consolidationGroup) {
+      consolidationGroup.classList.toggle('hidden', !isMergeRoute);
     }
-  };
-
-  const renderMarkers = () => {
-    const html = [
-      createMarkerMarkup(selections.start, 'start'),
-      createMarkerMarkup(selections.consolidation, 'merge'),
-      createMarkerMarkup(selections.final, 'final')
-    ]
-      .filter(Boolean)
-      .join('');
-    markersLayer.innerHTML = html;
-  };
-
-  const updateSummary = (target) => {
-    const label = summaryLabels[target];
-    if (!label) {
-      return;
-    }
-    label.textContent = selections[target]?.province ?? '-';
-  };
-
-  const clearSelection = (target) => {
-    selections[target] = null;
-    if (hiddenInputs[target]) {
-      hiddenInputs[target].value = '';
-    }
-    if (coordinateInputs[target]) {
-      coordinateInputs[target].value = '';
-    }
-    updateSummary(target);
-    renderMarkers();
-  };
-
-  const setSelection = (target, province, xPercent, yPercent) => {
-    if (!province) {
-      return;
-    }
-    const position = {
-      x: Number.isFinite(xPercent) ? Number(xPercent.toFixed(2)) : null,
-      y: Number.isFinite(yPercent) ? Number(yPercent.toFixed(2)) : null
-    };
-    selections[target] = { province, position };
-    if (hiddenInputs[target]) {
-      hiddenInputs[target].value = province;
-    }
-    if (coordinateInputs[target]) {
-      coordinateInputs[target].value =
-        position.x !== null && position.y !== null ? `${position.x},${position.y}` : '';
-    }
-    updateSummary(target);
-    renderMarkers();
-
-    if (target === 'final' && finalDestinationInput && finalDestinationInput.dataset.userEdited !== 'true') {
-      finalDestinationInput.value = province;
-      finalDestinationInput.dataset.autofill = 'true';
-    }
-  };
-
-  const toggleConsolidation = (show) => {
-    if (consolidationToggle) {
-      consolidationToggle.classList.toggle('hidden', !show);
-      const radio = consolidationToggle.querySelector('input[type="radio"]');
-      if (radio) {
-        radio.disabled = !show;
-        if (!show && radio.checked) {
-          const firstRadio = targetRadios.find((item) => item.value === 'start');
-          if (firstRadio) {
-            firstRadio.checked = true;
-            setActiveTarget('start');
-            updateTargetStyles();
-          }
-        }
-      }
-    }
-    if (summaryContainers.consolidation) {
-      summaryContainers.consolidation.classList.toggle('hidden', !show);
-    }
-    if (!show) {
-      clearSelection('consolidation');
-      closePicker();
+    if (consolidationProvinceGroup) {
+      consolidationProvinceGroup.classList.toggle('hidden', !isMergeRoute);
     }
     if (consolidationFactorySelect) {
-      consolidationFactorySelect.disabled = !show;
-      if (!show) {
+      consolidationFactorySelect.disabled = !isMergeRoute;
+      if (!isMergeRoute) {
         consolidationFactorySelect.value = '';
       }
     }
-  };
-
-  const openPicker = (xPercent, yPercent) => {
-    closePicker();
-    const picker = document.createElement('div');
-    picker.className = 'map-picker';
-    picker.style.left = `${xPercent}%`;
-    picker.style.top = `${yPercent}%`;
-
-    const select = document.createElement('select');
-    select.innerHTML = `<option value="">İl seçiniz</option>${provinceOptionsMarkup}`;
-    if (selections[activeTarget]?.province) {
-      select.value = selections[activeTarget].province;
+    if (consolidationProvinceSelect) {
+      consolidationProvinceSelect.required = Boolean(isMergeRoute);
+      consolidationProvinceSelect.disabled = !isMergeRoute;
+      if (!isMergeRoute) {
+        consolidationProvinceSelect.value = '';
+      }
     }
-
-    const actions = document.createElement('div');
-    actions.className = 'map-picker-actions';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.className = 'btn primary small';
-    confirmBtn.textContent = 'Kaydet';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'btn ghost small';
-    cancelBtn.textContent = 'Vazgeç';
-
-    confirmBtn.addEventListener('click', () => {
-      if (!select.value) {
-        window.alert('Lütfen bir il seçin.');
-        return;
-      }
-      setSelection(activeTarget, select.value, xPercent, yPercent);
-      closePicker();
-    });
-
-    cancelBtn.addEventListener('click', () => {
-      closePicker();
-    });
-
-    picker.addEventListener('click', (event) => {
-      event.stopPropagation();
-    });
-
-    actions.append(confirmBtn, cancelBtn);
-    picker.append(select, actions);
-    mapSelector.appendChild(picker);
-    pickerElement = picker;
   };
 
-  if (finalDestinationInput) {
-    finalDestinationInput.addEventListener('input', () => {
-      finalDestinationInput.dataset.userEdited = 'true';
-    });
-  }
-
-  targetRadios.forEach((radio) => {
-    radio.addEventListener('change', (event) => {
-      if (event.target.checked) {
-        setActiveTarget(event.target.value);
-        updateTargetStyles();
-      }
-    });
-  });
-
-  mapSelector.addEventListener('click', (event) => {
-    if (event.target.closest('.map-picker')) {
+  const syncStartProvince = () => {
+    if (!startFactorySelect || !startProvinceSelect) {
       return;
     }
-    const rect = mapSelector.getBoundingClientRect();
-    const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
-    const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
-    openPicker(xPercent, yPercent);
-  });
+    const factory = state.factories.find((item) => item.id === startFactorySelect.value);
+    if (!factory) {
+      return;
+    }
+    const optionExists = Array.from(startProvinceSelect.options).some(
+      (option) => option.value === factory.city
+    );
+    if (optionExists) {
+      startProvinceSelect.value = factory.city;
+    }
+  };
+
+  const ensureFinalProvince = () => {
+    if (!finalProvinceSelect) {
+      return;
+    }
+    if (!finalProvinceSelect.value && finalProvinceSelect.options.length > 0) {
+      finalProvinceSelect.selectedIndex = 0;
+    }
+  };
 
   if (routeSelect) {
-    routeSelect.addEventListener('change', () => {
-      const isMerge = routeSelect.value === 'Birleştirme';
-      toggleConsolidation(isMerge);
-      updateTargetStyles();
-    });
-    toggleConsolidation(routeSelect.value === 'Birleştirme');
-  } else {
-    toggleConsolidation(false);
+    routeSelect.addEventListener('change', updateConsolidationVisibility);
   }
 
   if (startFactorySelect) {
-    startFactorySelect.addEventListener('change', () => {
-      if (selections.start) {
-        return;
-      }
-      const factory = state.factories.find((item) => item.id === startFactorySelect.value);
-      if (factory && summaryLabels.start && hiddenInputs.start && !hiddenInputs.start.value) {
-        summaryLabels.start.textContent = factory.city;
-      }
-    });
+    startFactorySelect.addEventListener('change', syncStartProvince);
   }
 
-  if (consolidationFactorySelect) {
-    consolidationFactorySelect.addEventListener('change', () => {
-      if (selections.consolidation) {
-        return;
-      }
-      const factory = state.factories.find((item) => item.id === consolidationFactorySelect.value);
-      if (factory && summaryLabels.consolidation && hiddenInputs.consolidation && !hiddenInputs.consolidation.value) {
-        summaryLabels.consolidation.textContent = factory.city;
-      }
-    });
-  }
-
-  renderMarkers();
-  updateTargetStyles();
+  updateConsolidationVisibility();
+  syncStartProvince();
+  ensureFinalProvince();
 }
 
 function handleModalSubmit(event) {
@@ -2053,17 +1807,13 @@ function addOrderFromForm(formData) {
   const estimatedDeliveryInput = formData.get('estimatedDelivery');
   const note = formData.get('note') || '';
 
-  const startCoordinates = parseCoordinateInput(formData.get('startCoordinates'));
-  const consolidationCoordinates = parseCoordinateInput(formData.get('consolidationCoordinates'));
-  const finalCoordinates = parseCoordinateInput(formData.get('finalCoordinates'));
-
   if (!startFactory) {
     window.alert('Çıkış fabrikasını seçmelisiniz.');
     return false;
   }
 
   if (!startProvince || !finalProvince) {
-    window.alert('Çıkış ve son durak illerini haritadan seçmelisiniz.');
+    window.alert('Çıkış ve son durak illerini seçmelisiniz.');
     return false;
   }
 
@@ -2075,7 +1825,7 @@ function addOrderFromForm(formData) {
   const isMergeRoute = Boolean(routeType === 'Birleştirme' && consolidationFactory);
 
   if (isMergeRoute && !consolidationProvinceInput) {
-    window.alert('Birleştirme güzergahı için haritadan birleştirme ilini seçmelisiniz.');
+    window.alert('Birleştirme güzergahı için birleştirme ilini seçmelisiniz.');
     return false;
   }
 
@@ -2116,14 +1866,6 @@ function addOrderFromForm(formData) {
 
   const finalDestination = finalDestinationInput || finalProvince;
 
-  const routeMap = {
-    start: startProvince ? { province: startProvince, position: startCoordinates } : null,
-    consolidation: isMergeRoute && consolidationProvinceInput
-      ? { province: consolidationProvinceInput, position: consolidationCoordinates }
-      : null,
-    final: finalProvince ? { province: finalProvince, position: finalCoordinates } : null
-  };
-
   const newOrderId = generateOrderId();
   const consolidationLabel = consolidationFactory?.name ?? consolidationProvinceInput;
   const finalLabel = finalDestination || finalProvince;
@@ -2145,7 +1887,6 @@ function addOrderFromForm(formData) {
     statusHistory: [],
     products,
     stages: [],
-    routeMap,
     consolidationPoint: isMergeRoute ? consolidationLabel : null
   };
 
@@ -2496,6 +2237,14 @@ function createShortageOrder(order, stage, shortageItems) {
   const hasConsolidation = order.stages.length > 1;
   const timeline = calculateEstimatedTimeline(now, order.routeType, hasConsolidation);
 
+  const stageIndex = order.stages.findIndex((item) => item.id === stage.id);
+  const targetStage = stageIndex > -1 ? order.stages[stageIndex] : stage;
+  const originLabel = targetStage?.from ?? order.currentLocation;
+  const destinationLabel = targetStage?.to ?? order.nextLocation;
+  const orderFinal = order.finalDestination || order.stages[order.stages.length - 1]?.to;
+  const isFinalStage = stageIndex === order.stages.length - 1;
+  const legTimeline = stageIndex > 0 && hasConsolidation ? timeline.secondLeg ?? timeline.firstLeg : timeline.firstLeg;
+
   const revisionOrder = {
     id: revisionId,
     revisionOf: baseOrderId,
@@ -2504,11 +2253,11 @@ function createShortageOrder(order, stage, shortageItems) {
     type: order.type,
     routeType: order.routeType,
     accountName: order.accountName,
-    currentLocation: order.stages[0]?.from ?? order.currentLocation,
-    nextLocation: order.stages[0]?.to ?? order.nextLocation,
-    estimatedDelivery: timeline.final || order.estimatedDelivery,
+    currentLocation: originLabel,
+    nextLocation: destinationLabel,
+    estimatedDelivery: legTimeline?.arrival ?? timeline.final ?? order.estimatedDelivery,
     lastUpdate: now,
-    finalDestination: order.finalDestination,
+    finalDestination: isFinalStage ? orderFinal : destinationLabel,
     statusHistory: [],
     products: shortageItems.map((item) => ({
       code: item.code,
@@ -2516,24 +2265,18 @@ function createShortageOrder(order, stage, shortageItems) {
       qty: item.qty,
       origin: item.origin
     })),
-    stages: [],
-    routeMap: order.routeMap ? JSON.parse(JSON.stringify(order.routeMap)) : undefined
+    stages: []
   };
 
   revisionOrder.statusHistory.push({
     timestamp: now,
-    note: `${revisionOrder.currentLocation}: Revizyon siparişi oluşturuldu.`
+    note: `${originLabel}: Revizyon siparişi oluşturuldu.`
   });
 
   const timelineSegments = [];
-  if (timeline.firstLeg?.arrival) {
+  if (legTimeline?.arrival) {
     timelineSegments.push(
-      `${revisionOrder.currentLocation} → ${revisionOrder.nextLocation} ${extractDate(timeline.firstLeg.arrival)}`
-    );
-  }
-  if (timeline.secondLeg?.arrival && hasConsolidation) {
-    timelineSegments.push(
-      `${revisionOrder.nextLocation} → ${revisionOrder.finalDestination} ${extractDate(timeline.secondLeg.arrival)}`
+      `${originLabel} → ${destinationLabel} ${extractDate(legTimeline.arrival)}`
     );
   }
   if (timelineSegments.length > 0) {
@@ -2550,38 +2293,21 @@ function createShortageOrder(order, stage, shortageItems) {
       .join(', ')}`
   });
 
-  const stagePlans = order.stages.length
-    ? order.stages.map((originalStage, index) => {
-        const legTimeline = index === 0 ? timeline.firstLeg : timeline.secondLeg ?? timeline.firstLeg;
-        return {
-          id: `${revisionId}-${index + 1}`,
-          from: originalStage.from,
-          to: originalStage.to,
-          plannedStart: extractDate(legTimeline?.start ?? now),
-          plannedArrival: extractDate(legTimeline?.arrival ?? timeline.final ?? now),
-          transport: originalStage.transport,
-          note: `${originalStage.note} (Eksik ürün)`,
-          responsible: originalStage.responsible,
-          progress: 0,
-          status: stageStatuses[0],
-          completed: false
-        };
-      })
-    : [
-        {
-          id: `${revisionId}-1`,
-          from: order.currentLocation,
-          to: order.finalDestination,
-          plannedStart: extractDate(now),
-          plannedArrival: extractDate(timeline.final ?? now),
-          transport: 'Tır',
-          note: 'Eksik ürün sevkiyat planı.',
-          responsible: `${order.currentLocation} Lojistik`,
-          progress: 0,
-          status: stageStatuses[0],
-          completed: false
-        }
-      ];
+  const stagePlans = [
+    {
+      id: `${revisionId}-1`,
+      from: originLabel,
+      to: destinationLabel,
+      plannedStart: extractDate(legTimeline?.start ?? now),
+      plannedArrival: extractDate(legTimeline?.arrival ?? timeline.final ?? now),
+      transport: targetStage?.transport ?? 'Tır',
+      note: `${targetStage?.note ?? 'Eksik ürün sevkiyatı.'} (Eksik ürün)`,
+      responsible: targetStage?.responsible ?? `${originLabel} Lojistik`,
+      progress: 0,
+      status: stageStatuses[0],
+      completed: false
+    }
+  ];
 
   revisionOrder.stages = stagePlans;
 
@@ -2716,34 +2442,6 @@ function removeStageReceipt(stageId) {
       list.splice(index, 1);
     }
   });
-}
-
-function parseCoordinateInput(value) {
-  if (!value) {
-    return null;
-  }
-  const [xPart, yPart] = value.split(',');
-  const x = Number(xPart);
-  const y = Number(yPart);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null;
-  }
-  return { x, y };
-}
-
-function createMarkerMarkup(routePoint, type) {
-  if (!routePoint || !routePoint.province) {
-    return '';
-  }
-  const coordinates = routePoint.position;
-  if (!coordinates || !Number.isFinite(coordinates.x) || !Number.isFinite(coordinates.y)) {
-    return '';
-  }
-  return `
-    <span class="map-marker ${type}" style="left:${coordinates.x}%; top:${coordinates.y}%">
-      <span>${routePoint.province}</span>
-    </span>
-  `;
 }
 
 function getBaseOrderId(orderId) {
