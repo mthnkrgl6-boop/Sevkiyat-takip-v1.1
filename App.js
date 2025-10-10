@@ -149,8 +149,8 @@ const state = {
   activeUserId: users[0].id,
   orders: [
     {
-      id: 'ORD-HTY-235664',
-      revisionOf: 'ORD-HTY-235664',
+      id: 'ORD-235664',
+      revisionOf: 'ORD-235664',
       orderDate: '01.12.2024 11:40',
       invoiceNumber: '235664',
       type: 'Şantiye',
@@ -177,7 +177,7 @@ const state = {
       ],
       stages: [
         {
-          id: 'ORD-HTY-235664-1',
+          id: 'ORD-235664-1',
           from: 'İstanbul Şirin Fabrika',
           to: 'Aksaray Merkez Fabrika',
           plannedStart: '09.11.2024',
@@ -190,7 +190,7 @@ const state = {
           completed: false
         },
         {
-          id: 'ORD-HTY-235664-2',
+          id: 'ORD-235664-2',
           from: 'Aksaray Merkez Fabrika',
           to: 'Hatay Çekmece Konut Projesi Şantiyesi',
           plannedStart: '12.11.2024',
@@ -205,8 +205,8 @@ const state = {
       ]
     },
     {
-      id: 'ORD-ANK-336744',
-      revisionOf: 'ORD-ANK-336744',
+      id: 'ORD-336744',
+      revisionOf: 'ORD-336744',
       orderDate: '05.12.2024 09:20',
       invoiceNumber: '336744',
       type: 'Bölge',
@@ -231,7 +231,7 @@ const state = {
       ],
       stages: [
         {
-          id: 'ORD-ANK-336744-1',
+          id: 'ORD-336744-1',
           from: 'Aksaray Merkez Fabrika',
           to: 'Ankara Bölge Müdürlüğü Deposu',
           plannedStart: '06.12.2024',
@@ -246,8 +246,8 @@ const state = {
       ]
     },
     {
-      id: 'ORD-MLT-363723',
-      revisionOf: 'ORD-MLT-363723',
+      id: 'ORD-363723',
+      revisionOf: 'ORD-363723',
       orderDate: '09.11.2024 12:10',
       invoiceNumber: '363723',
       type: 'Müşteri Depo',
@@ -271,7 +271,7 @@ const state = {
       ],
       stages: [
         {
-          id: 'ORD-MLT-363723-1',
+          id: 'ORD-363723-1',
           from: 'İstanbul Şirin Fabrika',
           to: 'Malatya Bölge Deposu',
           plannedStart: '10.11.2024',
@@ -284,7 +284,7 @@ const state = {
           completed: false
         },
         {
-          id: 'ORD-MLT-363723-2',
+          id: 'ORD-363723-2',
           from: 'Sakarya Fabrika',
           to: 'Malatya Bölge Deposu',
           plannedStart: '11.11.2024',
@@ -482,6 +482,42 @@ function isProductManagedByStage(stage, product) {
   return stageOrigin === productOrigin;
 }
 
+function getActiveRoleId() {
+  return getActiveUser()?.roleId ?? null;
+}
+
+function isManagerUser() {
+  return getActiveRoleId() === 'yonetici';
+}
+
+function canManageOutgoingStage(stage) {
+  if (!stage) {
+    return false;
+  }
+  if (isManagerUser()) {
+    return true;
+  }
+  return isSameLocationName(stage.from, state.activeWarehouse);
+}
+
+function canManageIncomingStage(stage) {
+  if (!stage) {
+    return false;
+  }
+  if (isManagerUser()) {
+    return true;
+  }
+  return isSameLocationName(stage.to, state.activeWarehouse);
+}
+
+function isKnownFactoryLocation(name) {
+  const normalized = normalizeLocationName(name);
+  if (!normalized) {
+    return false;
+  }
+  return state.factories.some((factory) => normalizeLocationName(factory.name) === normalized);
+}
+
 function getManageableLineItemsForWarehouse(stage, warehouseName) {
   if (!stage || !Array.isArray(stage.lineItems)) {
     return [];
@@ -538,6 +574,12 @@ function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
     return;
   }
 
+  if (!canManageOutgoingStage(stage) || stage.progress >= 2) {
+    window.alert('Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.');
+    renderHatManagement();
+    return;
+  }
+
   const index = Number(itemIndex);
   if (!Number.isInteger(index) || index < 0 || index >= stage.lineItems.length) {
     return;
@@ -573,6 +615,12 @@ function setLineItemComplete(orderId, stageId, itemIndex) {
     return;
   }
 
+  if (!canManageOutgoingStage(stage) || stage.progress >= 2) {
+    window.alert('Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.');
+    renderHatManagement();
+    return;
+  }
+
   const index = Number(itemIndex);
   if (!Number.isInteger(index) || index < 0 || index >= stage.lineItems.length) {
     return;
@@ -597,6 +645,18 @@ function toggleStageApproval(orderId, stageId, approved) {
   }
   const stage = order.stages.find((item) => item.id === stageId);
   if (!stage) {
+    renderHatManagement();
+    return false;
+  }
+
+  if (!canManageOutgoingStage(stage)) {
+    window.alert('Bu sevkiyat durumunu yalnızca ilgili fabrikanın ekibi güncelleyebilir.');
+    renderHatManagement();
+    return false;
+  }
+
+  if (stage.progress !== 1) {
+    window.alert('Stok onayı sadece "Hazırlanıyor" durumundaki sevkiyatlar için verilebilir.');
     renderHatManagement();
     return false;
   }
@@ -1081,6 +1141,7 @@ function renderHatManagement() {
           <strong>${order.id}</strong>
           <span class="badge">${stage.status}</span>
         </div>
+        <span>Cari: ${order.accountName || '-'}</span>
         <span>Nereden: ${stage.from}</span>
         <span>Planlanan Varış: ${stage.plannedArrival}</span>
         <span>Ürün Notu: ${stage.note}</span>
@@ -1105,7 +1166,7 @@ function renderHatManagement() {
       input.dataset.stageId = stage.id;
       input.dataset.orderId = order.id;
       input.checked = stage.progress >= 3;
-      input.disabled = stage.progress < 2;
+      input.disabled = stage.progress < 2 || !canManageIncomingStage(stage);
       checkbox.append(input, document.createTextNode('Onay'));
       actions.appendChild(checkbox);
 
@@ -1118,7 +1179,7 @@ function renderHatManagement() {
         shortageBtn.dataset.stageId = stage.id;
         shortageBtn.dataset.orderId = order.id;
         shortageBtn.textContent = 'Eksik Ürün';
-        shortageBtn.disabled = stage.progress < 2 || stage.shortageFlagged;
+        shortageBtn.disabled = stage.progress < 2 || stage.shortageFlagged || !canManageIncomingStage(stage);
         if (shortageBtn.disabled && !stage.shortageFlagged) {
           shortageBtn.title = 'Eksik ürün bildirimi için sevkiyatın ambara giriş yapması gerekir.';
         }
@@ -1151,6 +1212,7 @@ function renderHatManagement() {
           <strong>${receipt.orderId}</strong>
           <span class="badge">Teslim Alındı</span>
         </div>
+        <span>Cari: ${receipt.accountName ?? '-'}</span>
         <span>Nereden: ${receipt.from}</span>
         <span>Teslim Tarihi: ${receipt.deliveredAt}</span>
         ${receipt.note ? `<span class="muted">${receipt.note}</span>` : ''}
@@ -1173,6 +1235,7 @@ function renderHatManagement() {
       card.className = 'hat-card';
 
       const hasLineItems = Array.isArray(stage.lineItems) && stage.lineItems.length > 0;
+      const manageAllowed = canManageOutgoingStage(stage);
       const hasMissing =
         hasLineItems &&
         stage.lineItems.some((item) => item?.isLocal !== false && Number(item.missingQty) > 0);
@@ -1196,6 +1259,10 @@ function renderHatManagement() {
         header.appendChild(shortageBadge);
       }
       card.appendChild(header);
+
+      const accountInfo = document.createElement('span');
+      accountInfo.textContent = `Cari: ${order.accountName || '-'}`;
+      card.appendChild(accountInfo);
 
       const destination = document.createElement('span');
       destination.textContent = `Nereye: ${stage.to}`;
@@ -1250,7 +1317,7 @@ function renderHatManagement() {
             readyInput.dataset.stageId = stage.id;
             readyInput.dataset.orderId = order.id;
             readyInput.dataset.itemIndex = String(index);
-            readyInput.disabled = stage.progress >= 2;
+            readyInput.disabled = stage.progress >= 2 || !manageAllowed;
             readyCell.appendChild(readyInput);
           } else {
             readyCell.innerHTML = '<span class="no-control">-</span>';
@@ -1269,7 +1336,7 @@ function renderHatManagement() {
             missingInput.dataset.stageId = stage.id;
             missingInput.dataset.orderId = order.id;
             missingInput.dataset.itemIndex = String(index);
-            missingInput.disabled = stage.progress >= 2;
+            missingInput.disabled = stage.progress >= 2 || !manageAllowed;
             missingCell.appendChild(missingInput);
           } else {
             missingCell.innerHTML = '<span class="no-control">-</span>';
@@ -1283,7 +1350,7 @@ function renderHatManagement() {
             statusIndicator.className = `badge ${missingCount > 0 ? 'warning' : 'success'}`;
             statusIndicator.textContent = missingCount > 0 ? `Eksik (${missingCount})` : 'Tam';
             statusCell.appendChild(statusIndicator);
-            if (stage.progress < 2) {
+            if (stage.progress < 2 && manageAllowed) {
               const fillBtn = document.createElement('button');
               fillBtn.type = 'button';
               fillBtn.className = 'btn ghost small';
@@ -1324,7 +1391,8 @@ function renderHatManagement() {
       approvalInput.dataset.stageId = stage.id;
       approvalInput.dataset.orderId = order.id;
       approvalInput.checked = Boolean(stage.dispatchApproval?.approved);
-      approvalInput.disabled = stage.progress >= 2;
+      const approvalEnabled = stage.progress === 1 && manageAllowed;
+      approvalInput.disabled = !approvalEnabled;
       approvalLabel.append(approvalInput, document.createTextNode('Çıkış Onayı'));
       approval.appendChild(approvalLabel);
 
@@ -1334,7 +1402,9 @@ function renderHatManagement() {
         const approver = stage.dispatchApproval.approvedBy ?? 'Onaylandı';
         approvalInfo.textContent = `${approver} • ${stage.dispatchApproval.timestamp}`;
       } else {
-        approvalInfo.textContent = 'Onay bekleniyor';
+        approvalInfo.textContent = approvalEnabled
+          ? 'Onay bekleniyor'
+          : 'Hazırlanıyor durumuna geçildiğinde onay verilebilir.';
         approvalInfo.classList.add('pending');
       }
       approval.appendChild(approvalInfo);
@@ -1349,9 +1419,14 @@ function renderHatManagement() {
         sendBtn.dataset.stageId = stage.id;
         sendBtn.dataset.orderId = order.id;
         sendBtn.textContent = 'Gönder';
-        if (!isStageDispatchReady(stage)) {
+        if (!manageAllowed) {
+          sendBtn.disabled = true;
+          sendBtn.title = 'Bu sevkiyat farklı bir fabrika tarafından yönetiliyor.';
+        } else if (!isStageDispatchReady(stage)) {
           sendBtn.disabled = true;
           sendBtn.title = 'Çıkış onayı ve ürün kontrollerini tamamlayın.';
+        } else {
+          sendBtn.title = '';
         }
         actions.appendChild(sendBtn);
       } else {
@@ -1556,14 +1631,16 @@ function openModal(type) {
 
   if (type === 'order') {
     title.textContent = 'Yeni Sipariş Oluştur';
+    const suggestedInvoice = generateInvoiceNumber();
+    const openedAt = formatNow();
     form.innerHTML = `
-      <div class="form-group">
+      <div class="form-group readonly">
         <label>Sipariş Tarihi</label>
-        <input type="datetime-local" name="orderDate" required />
+        <div class="readonly-field" data-order-date-display>${openedAt}</div>
       </div>
       <div class="form-group">
         <label>Fatura Numarası</label>
-        <input type="text" name="invoiceNumber" placeholder="Örn. 123456" />
+        <input type="text" name="invoiceNumber" value="${suggestedInvoice}" required placeholder="Örn. 123456" />
       </div>
       <div class="form-group">
         <label>Sipariş Türü</label>
@@ -1879,9 +1956,16 @@ function handleModalSubmit(event) {
 }
 
 function addOrderFromForm(formData) {
-  const orderDateInput = formData.get('orderDate');
-  const orderDate = orderDateInput ? formatDateFromInput(orderDateInput) : formatNow();
-  const invoiceNumber = formData.get('invoiceNumber') || generateInvoiceNumber();
+  const orderDate = formatNow();
+  const invoiceNumberInput = (formData.get('invoiceNumber') || '').toString().trim();
+  const invoiceNumber = invoiceNumberInput || generateInvoiceNumber();
+  const duplicateInvoice =
+    state.orders.some((order) => order.invoiceNumber === invoiceNumber) ||
+    state.archivedOrders.some((order) => order.invoiceNumber === invoiceNumber);
+  if (duplicateInvoice) {
+    window.alert('Bu fatura numarasıyla kayıtlı bir sipariş zaten mevcut.');
+    return false;
+  }
   const type = formData.get('orderType');
   const routeType = formData.get('routeType');
   const accountName = formData.get('accountName');
@@ -1956,7 +2040,7 @@ function addOrderFromForm(formData) {
 
   const finalDestination = finalDestinationInput || finalProvince;
 
-  const newOrderId = generateOrderId();
+  const newOrderId = generateOrderId(invoiceNumber);
   const consolidationLabel = consolidationFactory?.name ?? consolidationProvinceInput;
   const finalLabel = finalDestination || finalProvince;
   const startLabel = startFactory?.name ?? startProvince;
@@ -2104,6 +2188,20 @@ function advanceStage(orderId, stageId) {
     return;
   }
 
+  const outgoingAllowed = canManageOutgoingStage(stage);
+  const incomingAllowed = canManageIncomingStage(stage);
+  const canCompleteFromSource = outgoingAllowed && !incomingAllowed && !isKnownFactoryLocation(stage.to);
+
+  if (nextProgress <= 2 && !outgoingAllowed) {
+    window.alert('Bu aşama yalnızca ilgili üretim fabrikası tarafından ilerletilebilir.');
+    return;
+  }
+
+  if (nextProgress === 3 && !(incomingAllowed || canCompleteFromSource)) {
+    window.alert('Sevkiyat tamamlaması ilgili varış noktası tarafından onaylanmalıdır.');
+    return;
+  }
+
   const { orderCompleted, timestamp } = setStageProgress(order, stage, nextProgress);
 
   const note = progressNote(stage, nextProgress);
@@ -2131,7 +2229,17 @@ function dispatchStage(orderId, stageId) {
     return false;
   }
 
+  if (!canManageOutgoingStage(stage)) {
+    window.alert('Bu sevkiyat çıkışı farklı bir fabrikanın kontrolündedir.');
+    return false;
+  }
+
   if (stage.progress >= 2) {
+    return false;
+  }
+
+  if (stage.progress !== 1) {
+    window.alert('Sevkiyat çıkışı için aşama "Hazırlanıyor" durumunda olmalıdır.');
     return false;
   }
 
@@ -2202,6 +2310,12 @@ function completeStage(orderId, stageId) {
     return;
   }
 
+  if (!canManageIncomingStage(stage)) {
+    window.alert('Bu sevkiyat girişi ilgili fabrika tarafından onaylanmalıdır.');
+    renderHatManagement();
+    return;
+  }
+
   if (stage.progress >= 3) {
     return;
   }
@@ -2234,7 +2348,13 @@ function dispatchAllFromWarehouse() {
   const readyStages = stagesToDispatch.filter(({ orderId, stageId }) => {
     const order = state.orders.find((item) => item.id === orderId);
     const stage = order?.stages.find((item) => item.id === stageId);
-    return stage ? isStageDispatchReady(stage) : false;
+    if (!stage) {
+      return false;
+    }
+    if (!canManageOutgoingStage(stage) || stage.progress !== 1) {
+      return false;
+    }
+    return isStageDispatchReady(stage);
   });
 
   if (readyStages.length === 0) {
@@ -2259,6 +2379,12 @@ function reportStageShortage(orderId, stageId) {
   }
   const stage = order.stages.find((item) => item.id === stageId);
   if (!stage) {
+    return;
+  }
+
+  if (!canManageIncomingStage(stage)) {
+    window.alert('Eksik ürün bildirimi yalnızca ilgili varış ambarı tarafından yapılabilir.');
+    renderHatManagement();
     return;
   }
 
@@ -2507,7 +2633,8 @@ function updateWarehouseReceipts(order, stage, deliveredTimestamp = null) {
     orderId: order.id,
     deliveredAt,
     from: stage.from,
-    note: stage.note
+    note: stage.note,
+    accountName: order.accountName
   };
 
   if (existingIndex === -1) {
@@ -2721,9 +2848,14 @@ function formatNow() {
   return formatDisplayDate(new Date());
 }
 
-function generateOrderId() {
-  const random = Math.floor(Math.random() * 900 + 100);
-  return `ORD-${Date.now()}-${random}`;
+function generateOrderId(invoiceNumber) {
+  const normalized = (invoiceNumber ?? '')
+    .toString()
+    .trim();
+  if (!normalized) {
+    return `ORD-${Date.now()}`;
+  }
+  return `ORD-${normalized}`;
 }
 
 function generateInvoiceNumber() {
