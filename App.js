@@ -337,17 +337,37 @@ function renderOrderDetail() {
   fragment.querySelector('[data-field="invoiceNumber"]').textContent = order.invoiceNumber;
   fragment.querySelector('[data-field="routeType"]').textContent = order.routeType;
   fragment.querySelector('[data-field="accountName"]').textContent = order.accountName;
-  fragment.querySelector('[data-field="currentLocation"]').textContent = order.currentLocation ?? '-';
-  fragment.querySelector('[data-field="nextLocation"]').textContent = order.nextLocation ?? '-';
-  fragment.querySelector('[data-field="estimatedDelivery"]').textContent = order.estimatedDelivery ?? '-';
+  fragment.querySelector('[data-field="currentLocation"]').textContent = order.currentLocation || '-';
+  fragment.querySelector('[data-field="nextLocation"]').textContent = order.nextLocation || '-';
+  fragment.querySelector('[data-field="estimatedDelivery"]').textContent = order.estimatedDelivery || '-';
 
   const mapFigure = fragment.querySelector('[data-field="map"]');
   if (mapFigure) {
     mapFigure.innerHTML = `
       <div class="muted" style="padding: 16px;">
-        ${order.currentLocation ?? 'Kaynak'} → ${order.nextLocation ?? 'Hedef'} rotası izleniyor.
+        ${(order.currentLocation || 'Kaynak')} → ${(order.nextLocation || 'Hedef')} rotası izleniyor.
       </div>
     `;
+  }
+
+  const currentLocationInput = fragment.querySelector('[data-field="currentLocationInput"]');
+  if (currentLocationInput) {
+    currentLocationInput.value = order.currentLocation ?? '';
+  }
+
+  const nextLocationInput = fragment.querySelector('[data-field="nextLocationInput"]');
+  if (nextLocationInput) {
+    nextLocationInput.value = order.nextLocation ?? '';
+  }
+
+  const estimateInput = fragment.querySelector('[data-field="estimateInput"]');
+  if (estimateInput) {
+    estimateInput.value = toDateTimeLocalValue(order.estimatedDelivery);
+  }
+
+  const noteInput = fragment.querySelector('[data-field="noteInput"]');
+  if (noteInput) {
+    noteInput.value = '';
   }
 
   fragment
@@ -636,6 +656,71 @@ function handleOrderDetailAction(event) {
         addHistory(order, `Tahmini teslimat ${estimate} olarak güncellendi.`);
         renderAll();
       }
+    }
+    return;
+  }
+
+  if (action === 'save-order') {
+    const container = document.getElementById('order-detail');
+    const order = state.orders.find((item) => item.id === orderId);
+    if (!order || !container) {
+      return;
+    }
+
+    const currentInput = container.querySelector('[data-field="currentLocationInput"]');
+    const nextInput = container.querySelector('[data-field="nextLocationInput"]');
+    const estimateInput = container.querySelector('[data-field="estimateInput"]');
+    const noteInput = container.querySelector('[data-field="noteInput"]');
+
+    const trimmedCurrent = currentInput?.value.trim() ?? '';
+    const trimmedNext = nextInput?.value.trim() ?? '';
+    const estimateValue = estimateInput?.value ?? '';
+    const manualNote = noteInput?.value.trim() ?? '';
+
+    const normalizedCurrent = trimmedCurrent ? trimmedCurrent : null;
+    const normalizedNext = trimmedNext ? trimmedNext : null;
+    const formattedEstimate = formatDateFromInput(estimateValue);
+    const normalizedEstimate = formattedEstimate ? formattedEstimate : null;
+
+    const previousCurrent = order.currentLocation ?? null;
+    const previousNext = order.nextLocation ?? null;
+    const previousEstimate = order.estimatedDelivery ?? null;
+
+    const changes = [];
+    let hasChanges = false;
+
+    if (normalizedCurrent !== previousCurrent) {
+      order.currentLocation = normalizedCurrent;
+      hasChanges = true;
+      changes.push(`Cari konum ${previousCurrent ?? '-'} → ${normalizedCurrent ?? '-'}`);
+    }
+
+    if (normalizedNext !== previousNext) {
+      order.nextLocation = normalizedNext;
+      hasChanges = true;
+      changes.push(`Sıradaki konum ${previousNext ?? '-'} → ${normalizedNext ?? '-'}`);
+    }
+
+    if (normalizedEstimate !== previousEstimate) {
+      order.estimatedDelivery = normalizedEstimate;
+      hasChanges = true;
+      changes.push(`Tahmini teslimat ${previousEstimate ?? '-'} → ${normalizedEstimate ?? '-'}`);
+    }
+
+    if (manualNote) {
+      addHistory(order, manualNote);
+      hasChanges = true;
+    } else if (changes.length > 0) {
+      addHistory(order, `Güncelleme: ${changes.join(' • ')}`);
+    }
+
+    if (noteInput) {
+      noteInput.value = '';
+    }
+
+    if (hasChanges) {
+      order.lastUpdate = formatNow();
+      renderAll();
     }
     return;
   }
@@ -1049,6 +1134,36 @@ function formatDateFromInput(input) {
     return input;
   }
   return formatDisplayDate(date);
+}
+
+function toDateTimeLocalValue(displayValue) {
+  if (!displayValue) {
+    return '';
+  }
+
+  const [datePart, timePart] = displayValue.trim().split(' ');
+  if (!datePart) {
+    return '';
+  }
+
+  const dateMatch = datePart.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!dateMatch) {
+    return '';
+  }
+
+  const [, day, month, year] = dateMatch;
+
+  let hour = '00';
+  let minute = '00';
+  if (timePart) {
+    const timeMatch = timePart.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (timeMatch) {
+      hour = timeMatch[1].padStart(2, '0');
+      minute = timeMatch[2].padStart(2, '0');
+    }
+  }
+
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour}:${minute}`;
 }
 
 function extractDate(dateString) {

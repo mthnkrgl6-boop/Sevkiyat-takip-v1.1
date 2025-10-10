@@ -206,6 +206,20 @@
         <h3>Hat Adımları</h3>
         <ul class="stage-list" data-field="stages"></ul>
       </section>
+      <section class="detail-section">
+        <h3>Sipariş Bilgilerini Güncelle</h3>
+        <label for="order-current-location">Cari Konumu</label>
+        <input id="order-current-location" type="text" data-field="currentLocationInput" placeholder="Örn. İstanbul Şirin Fabrika" />
+        <label for="order-next-location">Sıradaki Konum</label>
+        <input id="order-next-location" type="text" data-field="nextLocationInput" placeholder="Örn. Aksaray Merkez Fabrika" />
+        <label for="order-estimate">Tahmini Teslimat</label>
+        <input id="order-estimate" type="datetime-local" data-field="estimateInput" />
+        <label for="order-note">Durum Notu</label>
+        <textarea id="order-note" data-field="noteInput" placeholder="Kayda geçmek istediğiniz güncelleme notunu yazın."></textarea>
+        <div class="detail-actions">
+          <button class="btn primary" data-action="save-order">Kaydet</button>
+        </div>
+      </section>
     </div>
   </template>
 
