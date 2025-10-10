@@ -400,8 +400,13 @@ function normaliseLineItems(order, stage, stageIndex) {
   return targetProducts.map((product) => {
     const matched = existing.find((item) => item.productCode === product.code);
     const qty = Number(product.qty) || 0;
-    const readyQty = clamp(matched?.readyQty ?? qty - (matched?.missingQty ?? 0), 0, qty);
-    const missingQty = clamp(matched?.missingQty ?? qty - readyQty, 0, qty);
+    const defaultLocal = isProductManagedByStage(stage, product);
+    const isLocal = matched?.isLocal ?? defaultLocal;
+    const baseReady = clamp(matched?.readyQty ?? qty - (matched?.missingQty ?? 0), 0, qty);
+    const baseMissing = clamp(matched?.missingQty ?? qty - baseReady, 0, qty);
+
+    const readyQty = isLocal ? baseReady : qty;
+    const missingQty = isLocal ? baseMissing : 0;
 
     return {
       productCode: product.code,
@@ -409,7 +414,8 @@ function normaliseLineItems(order, stage, stageIndex) {
       origin: product.origin,
       qty,
       readyQty,
-      missingQty
+      missingQty,
+      isLocal
     };
   });
 }
@@ -443,6 +449,44 @@ function deriveProductsForStage(order, stage, stageIndex) {
   }
 
   return products;
+}
+
+function normalizeLocationName(name) {
+  return (name ?? '')
+    .toString()
+    .trim()
+    .toLocaleLowerCase('tr-TR');
+}
+
+function isSameLocationName(a, b) {
+  const normalizedA = normalizeLocationName(a);
+  const normalizedB = normalizeLocationName(b);
+  if (!normalizedA || !normalizedB) {
+    return false;
+  }
+  return normalizedA === normalizedB;
+}
+
+function isProductManagedByStage(stage, product) {
+  if (!stage || !product) {
+    return true;
+  }
+  const stageOrigin = normalizeLocationName(stage.from);
+  if (!stageOrigin) {
+    return true;
+  }
+  const productOrigin = normalizeLocationName(product.origin);
+  if (!productOrigin) {
+    return true;
+  }
+  return stageOrigin === productOrigin;
+}
+
+function getManageableLineItemsForWarehouse(stage, warehouseName) {
+  if (!stage || !Array.isArray(stage.lineItems)) {
+    return [];
+  }
+  return stage.lineItems.filter((item) => isSameLocationName(item.origin, warehouseName));
 }
 
 function clamp(value, min, max) {
@@ -500,6 +544,10 @@ function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
   }
 
   const lineItem = stage.lineItems[index];
+  if (lineItem?.isLocal === false) {
+    renderHatManagement();
+    return;
+  }
   const qty = Number(lineItem.qty) || 0;
   const numericValue = clamp(value, 0, qty);
 
@@ -531,6 +579,10 @@ function setLineItemComplete(orderId, stageId, itemIndex) {
   }
 
   const lineItem = stage.lineItems[index];
+  if (lineItem?.isLocal === false) {
+    renderHatManagement();
+    return;
+  }
   lineItem.readyQty = Number(lineItem.qty) || 0;
   lineItem.missingQty = 0;
   resetStageApproval(stage);
@@ -1057,18 +1109,26 @@ function renderHatManagement() {
       checkbox.append(input, document.createTextNode('Onay'));
       actions.appendChild(checkbox);
 
-      const shortageBtn = document.createElement('button');
-      shortageBtn.type = 'button';
-      shortageBtn.className = 'btn warning small';
-      shortageBtn.dataset.action = 'report-shortage';
-      shortageBtn.dataset.stageId = stage.id;
-      shortageBtn.dataset.orderId = order.id;
-      shortageBtn.textContent = 'Eksik Ürün';
-      shortageBtn.disabled = stage.progress < 2 || stage.shortageFlagged;
-      if (shortageBtn.disabled && !stage.shortageFlagged) {
-        shortageBtn.title = 'Eksik ürün bildirimi için sevkiyatın ambara giriş yapması gerekir.';
+      const manageableIncoming = getManageableLineItemsForWarehouse(stage, activeWarehouse);
+      if (manageableIncoming.length > 0) {
+        const shortageBtn = document.createElement('button');
+        shortageBtn.type = 'button';
+        shortageBtn.className = 'btn warning small';
+        shortageBtn.dataset.action = 'report-shortage';
+        shortageBtn.dataset.stageId = stage.id;
+        shortageBtn.dataset.orderId = order.id;
+        shortageBtn.textContent = 'Eksik Ürün';
+        shortageBtn.disabled = stage.progress < 2 || stage.shortageFlagged;
+        if (shortageBtn.disabled && !stage.shortageFlagged) {
+          shortageBtn.title = 'Eksik ürün bildirimi için sevkiyatın ambara giriş yapması gerekir.';
+        }
+        actions.appendChild(shortageBtn);
+      } else {
+        const info = document.createElement('span');
+        info.className = 'muted';
+        info.textContent = 'Eksik ürün bildirimi üretim sorumlularına açıktır.';
+        actions.appendChild(info);
       }
-      actions.appendChild(shortageBtn);
 
       card.appendChild(actions);
       incomingContainer.appendChild(card);
@@ -1113,7 +1173,9 @@ function renderHatManagement() {
       card.className = 'hat-card';
 
       const hasLineItems = Array.isArray(stage.lineItems) && stage.lineItems.length > 0;
-      const hasMissing = hasLineItems && stage.lineItems.some((item) => Number(item.missingQty) > 0);
+      const hasMissing =
+        hasLineItems &&
+        stage.lineItems.some((item) => item?.isLocal !== false && Number(item.missingQty) > 0);
 
       if (stage.shortageFlagged || hasMissing) {
         card.classList.add('shortage');
@@ -1157,12 +1219,19 @@ function renderHatManagement() {
         const tbody = document.createElement('tbody');
         stage.lineItems.forEach((item, index) => {
           const tr = document.createElement('tr');
-          if (Number(item.missingQty) > 0) {
+          const isLocal = item?.isLocal !== false;
+          if (!isLocal) {
+            tr.classList.add('external');
+          }
+          if (isLocal && Number(item.missingQty) > 0) {
             tr.classList.add('missing');
           }
 
           const productCell = document.createElement('td');
-          productCell.innerHTML = `<strong>${item.productName}</strong><span class="muted">Kod: ${item.productCode}</span>`;
+          const originNote = !isLocal
+            ? `<span class="origin-note">Üretim: ${item.origin || '-'}</span>`
+            : '';
+          productCell.innerHTML = `<strong>${item.productName}</strong><span class="muted">Kod: ${item.productCode}</span>${originNote}`;
           tr.appendChild(productCell);
 
           const qtyCell = document.createElement('td');
@@ -1170,51 +1239,65 @@ function renderHatManagement() {
           tr.appendChild(qtyCell);
 
           const readyCell = document.createElement('td');
-          const readyInput = document.createElement('input');
-          readyInput.type = 'number';
-          readyInput.min = '0';
-          readyInput.step = '1';
-          readyInput.max = String(item.qty);
-          readyInput.value = item.readyQty ?? item.qty;
-          readyInput.dataset.action = 'line-ready';
-          readyInput.dataset.stageId = stage.id;
-          readyInput.dataset.orderId = order.id;
-          readyInput.dataset.itemIndex = String(index);
-          readyInput.disabled = stage.progress >= 2;
-          readyCell.appendChild(readyInput);
+          if (isLocal) {
+            const readyInput = document.createElement('input');
+            readyInput.type = 'number';
+            readyInput.min = '0';
+            readyInput.step = '1';
+            readyInput.max = String(item.qty);
+            readyInput.value = item.readyQty ?? item.qty;
+            readyInput.dataset.action = 'line-ready';
+            readyInput.dataset.stageId = stage.id;
+            readyInput.dataset.orderId = order.id;
+            readyInput.dataset.itemIndex = String(index);
+            readyInput.disabled = stage.progress >= 2;
+            readyCell.appendChild(readyInput);
+          } else {
+            readyCell.innerHTML = '<span class="no-control">-</span>';
+          }
           tr.appendChild(readyCell);
 
           const missingCell = document.createElement('td');
-          const missingInput = document.createElement('input');
-          missingInput.type = 'number';
-          missingInput.min = '0';
-          missingInput.step = '1';
-          missingInput.max = String(item.qty);
-          missingInput.value = item.missingQty ?? 0;
-          missingInput.dataset.action = 'line-missing';
-          missingInput.dataset.stageId = stage.id;
-          missingInput.dataset.orderId = order.id;
-          missingInput.dataset.itemIndex = String(index);
-          missingInput.disabled = stage.progress >= 2;
-          missingCell.appendChild(missingInput);
+          if (isLocal) {
+            const missingInput = document.createElement('input');
+            missingInput.type = 'number';
+            missingInput.min = '0';
+            missingInput.step = '1';
+            missingInput.max = String(item.qty);
+            missingInput.value = item.missingQty ?? 0;
+            missingInput.dataset.action = 'line-missing';
+            missingInput.dataset.stageId = stage.id;
+            missingInput.dataset.orderId = order.id;
+            missingInput.dataset.itemIndex = String(index);
+            missingInput.disabled = stage.progress >= 2;
+            missingCell.appendChild(missingInput);
+          } else {
+            missingCell.innerHTML = '<span class="no-control">-</span>';
+          }
           tr.appendChild(missingCell);
 
           const statusCell = document.createElement('td');
           const statusIndicator = document.createElement('span');
-          const missingCount = Number(item.missingQty) || 0;
-          statusIndicator.className = `badge ${missingCount > 0 ? 'warning' : 'success'}`;
-          statusIndicator.textContent = missingCount > 0 ? `Eksik (${missingCount})` : 'Tam';
-          statusCell.appendChild(statusIndicator);
-          if (stage.progress < 2) {
-            const fillBtn = document.createElement('button');
-            fillBtn.type = 'button';
-            fillBtn.className = 'btn ghost small';
-            fillBtn.dataset.action = 'fill-complete';
-            fillBtn.dataset.stageId = stage.id;
-            fillBtn.dataset.orderId = order.id;
-            fillBtn.dataset.itemIndex = String(index);
-            fillBtn.textContent = 'Tam';
-            statusCell.appendChild(fillBtn);
+          if (isLocal) {
+            const missingCount = Number(item.missingQty) || 0;
+            statusIndicator.className = `badge ${missingCount > 0 ? 'warning' : 'success'}`;
+            statusIndicator.textContent = missingCount > 0 ? `Eksik (${missingCount})` : 'Tam';
+            statusCell.appendChild(statusIndicator);
+            if (stage.progress < 2) {
+              const fillBtn = document.createElement('button');
+              fillBtn.type = 'button';
+              fillBtn.className = 'btn ghost small';
+              fillBtn.dataset.action = 'fill-complete';
+              fillBtn.dataset.stageId = stage.id;
+              fillBtn.dataset.orderId = order.id;
+              fillBtn.dataset.itemIndex = String(index);
+              fillBtn.textContent = 'Tam';
+              statusCell.appendChild(fillBtn);
+            }
+          } else {
+            statusIndicator.className = 'badge neutral';
+            statusIndicator.textContent = 'Üretim Dışı';
+            statusCell.appendChild(statusIndicator);
           }
           tr.appendChild(statusCell);
           tbody.appendChild(tr);
@@ -1222,6 +1305,13 @@ function renderHatManagement() {
 
         table.appendChild(tbody);
         card.appendChild(table);
+        const hasExternalProducts = stage.lineItems.some((item) => item?.isLocal === false);
+        if (hasExternalProducts) {
+          const infoLine = document.createElement('span');
+          infoLine.className = 'muted info-line';
+          infoLine.textContent = 'Üretiminde olmadığınız ürünlerin stok eksikliği bildirimi kapalıdır.';
+          card.appendChild(infoLine);
+        }
       }
 
       const approval = document.createElement('div');
@@ -2052,6 +2142,7 @@ function dispatchStage(orderId, stageId) {
 
   const shortageItems = Array.isArray(stage.lineItems)
     ? stage.lineItems
+        .filter((item) => item?.isLocal !== false)
         .filter((item) => Number(item.missingQty) > 0)
         .map((item) => ({
           code: item.productCode,
@@ -2075,6 +2166,11 @@ function dispatchStage(orderId, stageId) {
   if (Array.isArray(stage.lineItems)) {
     stage.lineItems.forEach((item) => {
       const qty = Number(item.qty) || 0;
+      if (item?.isLocal === false) {
+        item.readyQty = qty;
+        item.missingQty = 0;
+        return;
+      }
       item.readyQty = clamp(item.readyQty, 0, qty);
       item.missingQty = clamp(item.missingQty, 0, qty);
     });
@@ -2166,6 +2262,12 @@ function reportStageShortage(orderId, stageId) {
     return;
   }
 
+  const manageableItems = getManageableLineItemsForWarehouse(stage, state.activeWarehouse);
+  if (manageableItems.length === 0) {
+    window.alert('Bu sevkiyat için eksik ürün bildirimi yapılamaz. Ürün üretimi farklı fabrikada.');
+    return;
+  }
+
   if (stage.shortageFlagged) {
     window.alert('Bu sevkiyat için eksik ürün bildirimi zaten yapılmış.');
     return;
@@ -2184,14 +2286,30 @@ function reportStageShortage(orderId, stageId) {
     return;
   }
 
+  const allowedCodes = new Set(
+    manageableItems.map((item) => item.productCode.toUpperCase())
+  );
+  const filteredShortages = shortageItems.filter((item) =>
+    allowedCodes.has(item.code.toUpperCase())
+  );
+
+  if (filteredShortages.length === 0) {
+    window.alert('Girdiğiniz ürünler bu fabrikanın üretiminde değil. Eksik bildirimine eklenmedi.');
+    return;
+  }
+
+  if (filteredShortages.length < shortageItems.length) {
+    window.alert('Üretim sorumluluğunuz dışındaki ürünler eksik listesine eklenmedi.');
+  }
+
   stage.shortageFlagged = true;
   stage.shortages = stage.shortages || [];
-  stage.shortages.push({ timestamp: formatNow(), items: shortageItems });
+  stage.shortages.push({ timestamp: formatNow(), items: filteredShortages });
 
-  const summary = shortageItems.map((item) => `${item.code} x${item.qty}`).join(', ');
+  const summary = filteredShortages.map((item) => `${item.code} x${item.qty}`).join(', ');
   addHistory(order, `${stage.to}: Eksik ürün bildirimi - ${summary}`);
 
-  const revisionOrder = createShortageOrder(order, stage, shortageItems);
+  const revisionOrder = createShortageOrder(order, stage, filteredShortages);
   addHistory(order, `${stage.to}: Eksik ürünler için ${revisionOrder.id} revizyonu açıldı.`);
 
   window.alert('Eksik ürünler için yeni bir revizyon siparişi oluşturuldu.');

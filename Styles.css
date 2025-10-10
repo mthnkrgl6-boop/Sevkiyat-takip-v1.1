@@ -455,6 +455,11 @@ body {
   color: #2f6b4c;
 }
 
+.badge.neutral {
+  background: rgba(140, 140, 140, 0.22);
+  color: #555555;
+}
+
 .hat-list {
   display: flex;
   flex-direction: column;
@@ -562,6 +567,18 @@ body {
   color: #a85f00;
 }
 
+.hat-line-table tbody tr.external {
+  background: rgba(236, 236, 236, 0.6);
+}
+
+.hat-line-table tbody tr.external td {
+  color: var(--muted);
+}
+
+.hat-line-table tbody tr.external td:first-child strong {
+  color: var(--muted);
+}
+
 .hat-line-table td:first-child {
   display: flex;
   flex-direction: column;
@@ -571,6 +588,11 @@ body {
 
 .hat-line-table td:first-child .muted {
   font-size: 12px;
+}
+
+.hat-line-table td:first-child .origin-note {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .hat-line-table input[type='number'] {
@@ -594,6 +616,11 @@ body {
   cursor: not-allowed;
 }
 
+.hat-line-table .no-control {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .hat-line-table td:last-child {
   display: flex;
   align-items: center;
@@ -603,6 +630,12 @@ body {
 
 .hat-line-table .btn.ghost.small {
   padding: 4px 10px;
+}
+
+.info-line {
+  font-size: 12px;
+  display: block;
+  margin-top: 6px;
 }
 
 .hat-approval {
