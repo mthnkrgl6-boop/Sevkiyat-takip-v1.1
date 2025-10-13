@@ -68,10 +68,6 @@
               </table>
             </div>
           </div>
-
-          <aside class="card order-detail" id="order-detail">
-            <!-- Order detail renders here -->
-          </aside>
         </div>
       </section>
 
@@ -189,64 +185,67 @@
   </div>
 
   <template id="order-detail-template">
-    <div class="detail-header">
-      <button class="btn ghost" data-action="back">Geri Dön</button>
-      <div class="detail-meta">
-        <div>
-          <span class="meta-label">Sipariş Tarihi</span>
-          <span class="meta-value" data-field="orderDate"></span>
+    <div class="order-detail-panel" data-order-id="">
+      <div class="detail-header">
+        <div class="detail-headline">
+          <h3>Sipariş Detayı</h3>
+          <p class="detail-id">Fatura No: <span class="badge" data-field="invoiceNumber"></span></p>
         </div>
-        <div>
-          <span class="meta-label">Fatura Numarası</span>
-          <span class="meta-value" data-field="invoiceNumber"></span>
-        </div>
-        <div>
-          <span class="meta-label">Hat Birleştirme</span>
-          <span class="meta-value" data-field="routeType"></span>
-        </div>
-        <div>
-          <span class="meta-label">Cari Bilgisi</span>
-          <span class="meta-value" data-field="accountName"></span>
+        <div class="detail-meta">
+          <div>
+            <span class="meta-label">Sipariş Tarihi</span>
+            <span class="meta-value" data-field="orderDate"></span>
+          </div>
+          <div>
+            <span class="meta-label">Hat Tipi</span>
+            <span class="meta-value" data-field="routeType"></span>
+          </div>
+          <div>
+            <span class="meta-label">Cari / Proje</span>
+            <span class="meta-value" data-field="accountName"></span>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="detail-body">
-      <section class="detail-section">
-        <h3>Ürün Listesi</h3>
-        <ul class="product-list" data-field="productList"></ul>
-        <button class="btn secondary" data-action="add-estimate">Tahmini Teslimat Zamanı Ekle</button>
-      </section>
-      <section class="detail-section">
-        <h3>Son Sevk Adresi</h3>
-        <div class="detail-destination" data-field="destinationDetails">
-          <p><strong>Cari Konum:</strong> <span data-field="currentLocation"></span></p>
-          <p><strong>Sıradaki Konum:</strong> <span data-field="nextLocation"></span></p>
-          <p><strong>Tahmini Teslimat:</strong> <span data-field="estimatedDelivery"></span></p>
-          <p><strong>Son Sevk Adresi:</strong> <span data-field="finalDestination"></span></p>
-        </div>
-      </section>
-      <section class="detail-section">
-        <h3>Sevk Durumu</h3>
-        <ul class="status-list" data-field="statusHistory"></ul>
-      </section>
-      <section class="detail-section">
-        <h3>Hat Adımları</h3>
-        <ul class="stage-list" data-field="stages"></ul>
-      </section>
-      <section class="detail-section">
-        <h3>Sipariş Bilgilerini Güncelle</h3>
-        <label for="order-current-location">Cari Konumu</label>
-        <input id="order-current-location" type="text" data-field="currentLocationInput" placeholder="Örn. İstanbul Şirin Fabrika" />
-        <label for="order-next-location">Sıradaki Konum</label>
-        <input id="order-next-location" type="text" data-field="nextLocationInput" placeholder="Örn. Aksaray Merkez Fabrika" />
-        <label for="order-estimate">Tahmini Teslimat</label>
-        <input id="order-estimate" type="datetime-local" data-field="estimateInput" />
-        <label for="order-note">Durum Notu</label>
-        <textarea id="order-note" data-field="noteInput" placeholder="Kayda geçmek istediğiniz güncelleme notunu yazın."></textarea>
-        <div class="detail-actions">
-          <button class="btn primary" data-action="save-order">Kaydet</button>
-        </div>
-      </section>
+      <div class="detail-body">
+        <section class="detail-section">
+          <div class="section-header">
+            <h3>Ürün Listesi</h3>
+            <button class="btn secondary small" data-action="add-estimate">Tahmini Teslimat Zamanı Ekle</button>
+          </div>
+          <ul class="product-list" data-field="productList"></ul>
+        </section>
+        <section class="detail-section">
+          <h3>Son Sevk Adresi</h3>
+          <div class="detail-destination" data-field="destinationDetails">
+            <p><strong>Cari Konum:</strong> <span data-field="currentLocation"></span></p>
+            <p><strong>Sıradaki Konum:</strong> <span data-field="nextLocation"></span></p>
+            <p><strong>Tahmini Teslimat:</strong> <span data-field="estimatedDelivery"></span></p>
+            <p><strong>Son Sevk Adresi:</strong> <span data-field="finalDestination"></span></p>
+          </div>
+        </section>
+        <section class="detail-section">
+          <h3>Sevk Durumu</h3>
+          <ul class="status-list" data-field="statusHistory"></ul>
+        </section>
+        <section class="detail-section">
+          <h3>Hat Adımları</h3>
+          <ul class="stage-list" data-field="stages"></ul>
+        </section>
+        <section class="detail-section">
+          <h3>Sipariş Bilgilerini Güncelle</h3>
+          <label for="order-current-location">Cari Konumu</label>
+          <input id="order-current-location" type="text" data-field="currentLocationInput" placeholder="Örn. İstanbul Şirin Fabrika" />
+          <label for="order-next-location">Sıradaki Konum</label>
+          <input id="order-next-location" type="text" data-field="nextLocationInput" placeholder="Örn. Aksaray Merkez Fabrika" />
+          <label for="order-estimate">Tahmini Teslimat</label>
+          <input id="order-estimate" type="datetime-local" data-field="estimateInput" />
+          <label for="order-note">Durum Notu</label>
+          <textarea id="order-note" data-field="noteInput" placeholder="Kayda geçmek istediğiniz güncelleme notunu yazın."></textarea>
+          <div class="detail-actions">
+            <button class="btn primary" data-action="save-order">Kaydet</button>
+          </div>
+        </section>
+      </div>
     </div>
   </template>
 

@@ -419,6 +419,26 @@ function authenticateUser(email, password) {
   );
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function generateUserId() {
+  const existingIds = new Set(state.users.map((user) => user.id));
+  let counter = state.users.length + 1;
+  let candidate = `user-${counter}`;
+  while (existingIds.has(candidate)) {
+    counter += 1;
+    candidate = `user-${counter}`;
+  }
+  return candidate;
+}
+
 function defaultWarehouseForUser(user) {
   if (!user) {
     return state.factories[0]?.name ?? '';
@@ -886,7 +906,6 @@ function bindGlobalActions() {
   });
 
   document.getElementById('orders-table-body').addEventListener('click', handleOrderTableClick);
-  document.getElementById('order-detail').addEventListener('click', handleOrderDetailAction);
   const incomingList = document.getElementById('incoming-list');
   incomingList.addEventListener('change', handleIncomingAction);
   incomingList.addEventListener('click', handleIncomingAction);
@@ -1144,9 +1163,69 @@ function createRoleOptions(selectedRoleId) {
     .join('');
 }
 
+function createUserRoleCard(user) {
+  const assignedFactories = Array.isArray(user.responsibleFactories) ? user.responsibleFactories : [];
+  const isSales = user.roleId === 'satis-operasyon';
+  const checkboxGroup = state.factories
+    .map((factory) => {
+      const checked = assignedFactories.some((name) => isSameLocationName(name, factory.name));
+      const disabledAttr = isSales ? 'disabled' : '';
+      const checkboxClass = isSales ? 'checkbox disabled' : 'checkbox';
+      return `
+        <label class="${checkboxClass}">
+          <input type="checkbox" name="factory-${user.id}" value="${factory.id}" ${checked ? 'checked' : ''} ${disabledAttr} />
+          ${escapeHtml(factory.name)}
+        </label>
+      `;
+    })
+    .join('');
+
+  const factoryControls = isSales
+    ? '<p class="form-hint">Satış Operasyon kullanıcıları depolara bağlı olmadan çalışır.</p>'
+    : `<div class="checkbox-group">${checkboxGroup}</div>`;
+
+  const removalDisabled = state.activeUserId === user.id ? 'disabled' : '';
+  const removalHint = state.activeUserId === user.id
+    ? '<span class="muted">Aktif kullanıcı silinemez.</span>'
+    : '';
+
+  return `
+    <div class="form-group role-card">
+      <div class="form-row">
+        <label>Ad Soyad</label>
+        <input type="text" name="name-${user.id}" value="${escapeHtml(user.name)}" required />
+      </div>
+      <div class="form-row">
+        <label>E-posta</label>
+        <input type="email" name="email-${user.id}" value="${escapeHtml(user.email)}" required />
+      </div>
+      <div class="form-row">
+        <label>Parola</label>
+        <input type="text" name="password-${user.id}" value="${escapeHtml(user.password)}" required />
+      </div>
+      <div class="form-row">
+        <label>Rol</label>
+        <select name="role-${user.id}">
+          ${createRoleOptions(user.roleId)}
+        </select>
+      </div>
+      <div class="form-row">
+        <span class="user-label">Sorumlu Fabrikalar</span>
+        ${factoryControls}
+      </div>
+      <div class="form-row remove-row">
+        <label class="checkbox danger">
+          <input type="checkbox" name="remove-${user.id}" ${removalDisabled} />
+          Kullanıcıyı Sil
+        </label>
+        ${removalHint}
+      </div>
+    </div>
+  `;
+}
+
 function renderAll() {
   renderOrdersTable();
-  renderOrderDetail();
   renderArchive();
   renderProductManagement();
   renderFactorySummary();
@@ -1156,53 +1235,66 @@ function renderAll() {
 
 function renderOrdersTable() {
   const tbody = document.getElementById('orders-table-body');
+  if (!tbody) {
+    return;
+  }
+
+  const hasSelection = state.orders.some((order) => order.id === state.activeOrderId);
+  if (!hasSelection) {
+    state.activeOrderId = state.orders[0]?.id ?? null;
+  }
+
   tbody.innerHTML = '';
 
   state.orders.forEach((order) => {
-    const tr = document.createElement('tr');
-    tr.dataset.orderId = order.id;
+    const summaryRow = document.createElement('tr');
+    summaryRow.dataset.orderId = order.id;
+    summaryRow.dataset.rowType = 'summary';
     if (order.id === state.activeOrderId) {
-      tr.classList.add('selected');
+      summaryRow.classList.add('selected');
     }
 
     const statusText = order.statusHistory[order.statusHistory.length - 1]?.note ?? 'Durum yok';
 
-    tr.innerHTML = `
+    summaryRow.innerHTML = `
       <td><button class="icon-btn" data-role="detail" data-order-id="${order.id}" aria-label="Detay">ℹ️</button></td>
-      <td>${order.orderDate}</td>
-      <td>${order.invoiceNumber}</td>
-      <td>${order.type}</td>
-      <td>${order.routeType}</td>
-      <td>${order.accountName}</td>
-      <td>${statusText}</td>
-      <td>${order.lastUpdate}</td>
+      <td>${escapeHtml(order.orderDate)}</td>
+      <td>${escapeHtml(order.invoiceNumber)}</td>
+      <td>${escapeHtml(order.type)}</td>
+      <td>${escapeHtml(order.routeType)}</td>
+      <td>${escapeHtml(order.accountName)}</td>
+      <td>${escapeHtml(statusText)}</td>
+      <td>${escapeHtml(order.lastUpdate)}</td>
     `;
 
-    tbody.appendChild(tr);
-  });
+    tbody.appendChild(summaryRow);
 
-  if (!state.activeOrderId && state.orders.length > 0) {
-    state.activeOrderId = state.orders[0].id;
-  }
+    const detailRow = document.createElement('tr');
+    detailRow.dataset.orderId = order.id;
+    detailRow.dataset.rowType = 'detail';
+    detailRow.className = 'order-detail-row';
+
+    const detailCell = document.createElement('td');
+    detailCell.colSpan = 8;
+    detailCell.className = 'order-detail-cell';
+
+    if (order.id === state.activeOrderId) {
+      detailRow.classList.add('expanded');
+      detailCell.appendChild(buildOrderDetailFragment(order));
+    }
+
+    detailRow.appendChild(detailCell);
+    tbody.appendChild(detailRow);
+  });
 }
 
-function renderOrderDetail() {
-  const container = document.getElementById('order-detail');
-  container.innerHTML = '';
-
-  if (!state.activeOrderId) {
-    container.innerHTML = '<p>Bir sipariş seçerek detayları görüntüleyin.</p>';
-    return;
-  }
-
-  const order = state.orders.find((item) => item.id === state.activeOrderId);
-  if (!order) {
-    container.innerHTML = '<p>Seçilen sipariş bulunamadı.</p>';
-    return;
-  }
-
+function buildOrderDetailFragment(order) {
   const template = document.getElementById('order-detail-template');
   const fragment = template.content.cloneNode(true);
+  const wrapper = fragment.querySelector('.order-detail-panel');
+  if (wrapper) {
+    wrapper.dataset.orderId = order.id;
+  }
 
   fragment.querySelector('[data-field="orderDate"]').textContent = order.orderDate;
   fragment.querySelector('[data-field="invoiceNumber"]').textContent = order.invoiceNumber;
@@ -1246,79 +1338,94 @@ function renderOrderDetail() {
     });
 
   const productList = fragment.querySelector('[data-field="productList"]');
-  if (order.products.length === 0) {
-    const empty = document.createElement('li');
-    empty.textContent = 'Bu siparişe ait ürün kaydı bulunmuyor.';
-    productList.appendChild(empty);
-  } else {
-    order.products.forEach((product) => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <strong>${product.name}</strong>
-        <span>Kod: ${product.code}</span>
-        <span>Miktar: ${product.qty}</span>
-        <span>Üretim: ${product.origin}</span>
-      `;
-      productList.appendChild(li);
-    });
+  if (productList) {
+    productList.innerHTML = '';
+    if (order.products.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = 'Bu siparişe ait ürün kaydı bulunmuyor.';
+      productList.appendChild(empty);
+    } else {
+      order.products.forEach((product) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <strong>${escapeHtml(product.name)}</strong>
+          <span>Kod: ${escapeHtml(product.code)}</span>
+          <span>Miktar: ${escapeHtml(product.qty)}</span>
+          <span>Üretim: ${escapeHtml(product.origin)}</span>
+        `;
+        productList.appendChild(li);
+      });
+    }
   }
 
   const statusList = fragment.querySelector('[data-field="statusHistory"]');
-  if (order.statusHistory.length === 0) {
-    const li = document.createElement('li');
-    li.textContent = 'Henüz durum bilgisi girilmedi.';
-    statusList.appendChild(li);
-  } else {
-    order.statusHistory.forEach((status) => {
+  if (statusList) {
+    statusList.innerHTML = '';
+    if (order.statusHistory.length === 0) {
       const li = document.createElement('li');
-      li.innerHTML = `
-        <time>${status.timestamp}</time>
-        <span>${status.note}</span>
-      `;
+      li.textContent = 'Henüz durum bilgisi girilmedi.';
       statusList.appendChild(li);
-    });
+    } else {
+      order.statusHistory.forEach((status) => {
+        const li = document.createElement('li');
+        const time = document.createElement('time');
+        time.textContent = status.timestamp;
+        const span = document.createElement('span');
+        span.textContent = status.note;
+        li.append(time, span);
+        statusList.appendChild(li);
+      });
+    }
   }
 
   const stageList = fragment.querySelector('[data-field="stages"]');
-  order.stages.forEach((stage) => {
-    const li = document.createElement('li');
-    const badge = document.createElement('span');
-    badge.className = 'badge stage-badge';
-    badge.textContent = `Durum: ${stage.status}`;
+  if (stageList) {
+    stageList.innerHTML = '';
+    order.stages.forEach((stage) => {
+      const li = document.createElement('li');
+      const badge = document.createElement('span');
+      badge.className = 'badge stage-badge';
+      badge.textContent = `Durum: ${stage.status}`;
 
-    li.innerHTML = `
-      <strong>${stage.from} → ${stage.to}</strong>
-      <span class="muted">Planlanan Çıkış: ${stage.plannedStart} • Planlanan Varış: ${stage.plannedArrival}</span>
-      <span class="muted">Taşıma: ${stage.transport} • Sorumlu: ${stage.responsible}</span>
-      <span>${stage.note}</span>
-    `;
-    li.appendChild(badge);
+      const header = document.createElement('strong');
+      header.textContent = `${stage.from} → ${stage.to}`;
+      const schedule = document.createElement('span');
+      schedule.className = 'muted';
+      schedule.textContent = `Planlanan Çıkış: ${stage.plannedStart} • Planlanan Varış: ${stage.plannedArrival}`;
+      const logistics = document.createElement('span');
+      logistics.className = 'muted';
+      logistics.textContent = `Taşıma: ${stage.transport} • Sorumlu: ${stage.responsible}`;
+      const note = document.createElement('span');
+      note.textContent = stage.note;
 
-    if (!stage.completed) {
-      const actions = document.createElement('div');
-      actions.className = 'stage-actions';
-      const btn = document.createElement('button');
-      btn.className = 'btn secondary small';
-      btn.dataset.action = 'advance-stage';
-      btn.dataset.stageId = stage.id;
-      btn.dataset.orderId = order.id;
-      btn.textContent = 'Sonraki Durum';
-      const inboundReady = inboundStagesCompleted(order, stage);
-      const canAdvance = canAdvanceStageAction(order, stage);
-      btn.disabled = !canAdvance;
-      btn.title = canAdvance
-        ? 'Aşamayı ilerletin'
-        : inboundReady
-            ? 'Bu aşama ilgili fabrikanın onayı olmadan ilerletilemez.'
-            : 'Giriş onayı tamamlanmadan aşama ilerletilemez.';
-      actions.appendChild(btn);
-      li.appendChild(actions);
-    }
+      li.append(header, schedule, logistics, note, badge);
 
-    stageList.appendChild(li);
-  });
+      if (!stage.completed) {
+        const actions = document.createElement('div');
+        actions.className = 'stage-actions';
+        const btn = document.createElement('button');
+        btn.className = 'btn secondary small';
+        btn.dataset.action = 'advance-stage';
+        btn.dataset.stageId = stage.id;
+        btn.dataset.orderId = order.id;
+        btn.textContent = 'Sonraki Durum';
+        const inboundReady = inboundStagesCompleted(order, stage);
+        const canAdvance = canAdvanceStageAction(order, stage);
+        btn.disabled = !canAdvance;
+        btn.title = canAdvance
+          ? 'Aşamayı ilerletin'
+          : inboundReady
+              ? 'Bu aşama ilgili fabrikanın onayı olmadan ilerletilemez.'
+              : 'Giriş onayı tamamlanmadan aşama ilerletilemez.';
+        actions.appendChild(btn);
+        li.appendChild(actions);
+      }
 
-  container.appendChild(fragment);
+      stageList.appendChild(li);
+    });
+  }
+
+  return fragment;
 }
 
 function renderArchive() {
@@ -1736,31 +1843,42 @@ function renderHatManagement() {
 }
 
 function handleOrderTableClick(event) {
-  const target = event.target.closest('[data-order-id]');
-  if (!target) {
+  const actionElement = event.target.closest('[data-action]');
+  if (actionElement) {
+    handleOrderDetailAction(event, actionElement);
     return;
   }
 
-  const orderId = target.dataset.orderId;
-  state.activeOrderId = orderId;
-  renderAll();
+  const targetRow = event.target.closest('tr[data-order-id]');
+  if (!targetRow) {
+    return;
+  }
+
+  const orderId = targetRow.dataset.orderId;
+  if (!orderId) {
+    return;
+  }
+
+  if (state.activeOrderId !== orderId) {
+    state.activeOrderId = orderId;
+    renderOrdersTable();
+  }
 }
 
-function handleOrderDetailAction(event) {
-  const action = event.target.dataset.action;
+function handleOrderDetailAction(event, actionSource) {
+  const trigger = actionSource ?? event.target.closest('[data-action]');
+  if (!trigger) {
+    return;
+  }
+
+  const action = trigger.dataset.action;
   if (!action) {
     return;
   }
 
-  if (action === 'back') {
-    state.activeOrderId = null;
-    renderOrderDetail();
-    renderOrdersTable();
-    return;
-  }
-
-  const orderId = event.target.dataset.orderId ?? state.activeOrderId;
-  const stageId = event.target.dataset.stageId;
+  const detailContainer = trigger.closest('.order-detail-panel');
+  const orderId = trigger.dataset.orderId ?? detailContainer?.dataset.orderId ?? state.activeOrderId;
+  const stageId = trigger.dataset.stageId;
 
   if (action === 'add-estimate') {
     const estimate = window.prompt('Tahmini teslimat zamanını girin (GG.AA.YYYY SS:DD):');
@@ -1777,16 +1895,19 @@ function handleOrderDetailAction(event) {
   }
 
   if (action === 'save-order') {
-    const container = document.getElementById('order-detail');
-    const order = state.orders.find((item) => item.id === orderId);
-    if (!order || !container) {
+    if (!detailContainer) {
       return;
     }
 
-    const currentInput = container.querySelector('[data-field="currentLocationInput"]');
-    const nextInput = container.querySelector('[data-field="nextLocationInput"]');
-    const estimateInput = container.querySelector('[data-field="estimateInput"]');
-    const noteInput = container.querySelector('[data-field="noteInput"]');
+    const order = state.orders.find((item) => item.id === orderId);
+    if (!order) {
+      return;
+    }
+
+    const currentInput = detailContainer.querySelector('[data-field="currentLocationInput"]');
+    const nextInput = detailContainer.querySelector('[data-field="nextLocationInput"]');
+    const estimateInput = detailContainer.querySelector('[data-field="estimateInput"]');
+    const noteInput = detailContainer.querySelector('[data-field="noteInput"]');
 
     const trimmedCurrent = currentInput?.value.trim() ?? '';
     const trimmedNext = nextInput?.value.trim() ?? '';
@@ -2040,48 +2161,58 @@ function openModal(type) {
       </div>
     `;
   } else if (type === 'role') {
-    title.textContent = 'Rol ve Sorumluluk Yönetimi';
+    title.textContent = 'Kullanıcı ve Rol Yönetimi';
+    const userCards = state.users.map((user) => createUserRoleCard(user)).join('');
+    const newUserFactories = state.factories
+      .map(
+        (factory) => `
+          <label class="checkbox">
+            <input type="checkbox" name="newFactory[]" value="${factory.id}" />
+            ${escapeHtml(factory.name)}
+          </label>
+        `
+      )
+      .join('');
+
     form.innerHTML = `
-      <p class="form-hint">Yalnızca yöneticiler kullanıcı rolleri ve sorumluluk atamalarında değişiklik yapabilir.</p>
-      <div class="form-grid role-grid">
-        ${state.users
-          .map((user) => {
-            const assignedFactories = Array.isArray(user.responsibleFactories)
-              ? user.responsibleFactories
-              : [];
-            const isSales = user.roleId === 'satis-operasyon';
-            const checkboxGroup = state.factories
-              .map((factory) => {
-                const checked = assignedFactories.some((name) => isSameLocationName(name, factory.name));
-                const disabledAttr = isSales ? 'disabled' : '';
-                const checkboxClass = isSales ? 'checkbox disabled' : 'checkbox';
-                return `
-                  <label class="${checkboxClass}">
-                    <input type="checkbox" name="factory-${user.id}" value="${factory.id}" ${checked ? 'checked' : ''} ${disabledAttr} />
-                    ${factory.name}
-                  </label>
-                `;
-              })
-              .join('');
-
-            const factoryControls = isSales
-              ? '<p class="form-hint">Satış Operasyon kullanıcıları depolara bağlı olmadan çalışır.</p>'
-              : `<div class="checkbox-group">${checkboxGroup}</div>`;
-
-            return `
-              <div class="form-group role-card">
-                <label>${user.name}<span class="muted">${user.email}</span></label>
-                <select name="role-${user.id}">
-                  ${createRoleOptions(user.roleId)}
-                </select>
-                <div class="form-group">
-                  <span class="user-label">Sorumlu Fabrikalar</span>
-                  ${factoryControls}
-                </div>
-              </div>
-            `;
-          })
-          .join('')}
+      <p class="form-hint">Yalnızca yöneticiler kullanıcı rolleri, departman yetkileri ve fabrika sorumluluklarında değişiklik yapabilir.</p>
+      <div class="form-section role-management-section">
+        <div class="form-section-header">
+          <h4>Mevcut Kullanıcılar</h4>
+          <p class="form-hint">Ad, iletişim, rol ve fabrika sorumluluklarını güncelleyin.</p>
+        </div>
+        <div class="form-grid role-grid">${userCards}</div>
+      </div>
+      <div class="form-section add-user-section">
+        <div class="form-section-header">
+          <h4>Yeni Kullanıcı Ekle</h4>
+          <p class="form-hint">Satış operasyon, ambar veya yönetim ekipleri için yeni giriş oluşturun.</p>
+        </div>
+        <div class="form-grid new-user-grid">
+          <div class="form-group">
+            <label>Ad Soyad</label>
+            <input type="text" name="newName" placeholder="Örn. Ali Vural" />
+          </div>
+          <div class="form-group">
+            <label>E-posta</label>
+            <input type="email" name="newEmail" placeholder="kullanici@firma.com" />
+          </div>
+          <div class="form-group">
+            <label>Parola</label>
+            <input type="text" name="newPassword" placeholder="Geçici parola belirleyin" />
+          </div>
+          <div class="form-group">
+            <label>Rol</label>
+            <select name="newRole">
+              ${createRoleOptions('satis-operasyon')}
+            </select>
+          </div>
+          <div class="form-group full-width">
+            <span class="user-label">Sorumlu Fabrikalar</span>
+            <div class="checkbox-group">${newUserFactories}</div>
+            <p class="form-hint">Satış Operasyon kullanıcıları için seçim yapılmasına gerek yoktur.</p>
+          </div>
+        </div>
       </div>
       <div class="form-actions">
         <button type="button" class="btn ghost" id="modal-cancel">Vazgeç</button>
@@ -2467,10 +2598,38 @@ function updateRolesFromForm(formData) {
     return false;
   }
 
-  state.users.forEach((user) => {
-    const selectedRoleId = formData.get(`role-${user.id}`);
-    if (selectedRoleId && roleDefinitions[selectedRoleId]) {
-      user.roleId = selectedRoleId;
+  const pendingUsers = [];
+  const removalSet = new Set();
+
+  for (const user of state.users) {
+    const removeRequested = formData.get(`remove-${user.id}`) === 'on';
+    if (removeRequested) {
+      if (state.activeUserId === user.id) {
+        window.alert('Aktif oturumdaki kullanıcı silinemez.');
+        return false;
+      }
+      removalSet.add(user.id);
+    }
+  }
+
+  for (const user of state.users) {
+    if (removalSet.has(user.id)) {
+      continue;
+    }
+
+    const name = (formData.get(`name-${user.id}`) || '').trim();
+    const email = (formData.get(`email-${user.id}`) || '').trim();
+    const password = (formData.get(`password-${user.id}`) || '').trim();
+
+    if (!name || !email || !password) {
+      window.alert('Kullanıcı bilgileri boş bırakılamaz.');
+      return false;
+    }
+
+    const selectedRoleId = formData.get(`role-${user.id}`) || user.roleId;
+    if (!roleDefinitions[selectedRoleId]) {
+      window.alert('Geçersiz rol seçimi yapıldı.');
+      return false;
     }
 
     const selectedFactories = formData.getAll(`factory-${user.id}`);
@@ -2478,19 +2637,93 @@ function updateRolesFromForm(formData) {
       .map((factoryId) => state.factories.find((factory) => factory.id === factoryId)?.name)
       .filter(Boolean);
 
-    if (user.roleId === 'satis-operasyon') {
-      user.responsibleFactories = [];
+    const updatedUser = {
+      ...user,
+      name,
+      email,
+      password,
+      roleId: selectedRoleId,
+      responsibleFactories: selectedRoleId === 'satis-operasyon' ? [] : resolvedFactories
+    };
+
+    if (updatedUser.roleId === 'satis-operasyon') {
+      updatedUser.lastWarehouse = null;
+    } else if (updatedUser.responsibleFactories.length > 0) {
+      const hasCurrent = updatedUser.responsibleFactories.some((name) =>
+        isSameLocationName(name, updatedUser.lastWarehouse)
+      );
+      updatedUser.lastWarehouse = hasCurrent
+        ? updatedUser.lastWarehouse ?? updatedUser.responsibleFactories[0]
+        : updatedUser.responsibleFactories[0];
     } else {
-      user.responsibleFactories = resolvedFactories;
+      updatedUser.lastWarehouse = null;
     }
 
-    if (user.responsibleFactories.length > 0) {
-      const hasCurrent = user.responsibleFactories.some((name) => isSameLocationName(name, user.lastWarehouse));
-      user.lastWarehouse = hasCurrent ? user.lastWarehouse : user.responsibleFactories[0];
-    } else if (user.roleId !== 'satis-operasyon') {
-      user.lastWarehouse = null;
+    pendingUsers.push(updatedUser);
+  }
+
+  const seenEmails = new Set();
+  for (const user of pendingUsers) {
+    const emailKey = user.email.trim().toLowerCase();
+    if (seenEmails.has(emailKey)) {
+      window.alert('Her kullanıcının benzersiz bir e-posta adresi olmalıdır.');
+      return false;
     }
-  });
+    seenEmails.add(emailKey);
+  }
+
+  const newName = (formData.get('newName') || '').trim();
+  const newEmail = (formData.get('newEmail') || '').trim();
+  const newPassword = (formData.get('newPassword') || '').trim();
+  const newRole = formData.get('newRole') || 'satis-operasyon';
+  const newFactories = formData.getAll('newFactory[]');
+
+  if (newName || newEmail || newPassword) {
+    if (!newName || !newEmail || !newPassword) {
+      window.alert('Yeni kullanıcı eklemek için ad, e-posta ve parola alanlarını doldurun.');
+      return false;
+    }
+    if (!roleDefinitions[newRole]) {
+      window.alert('Yeni kullanıcı için geçerli bir rol seçin.');
+      return false;
+    }
+
+    const normalizedNewEmail = newEmail.trim().toLowerCase();
+    if (seenEmails.has(normalizedNewEmail)) {
+      window.alert('Bu e-posta adresi zaten kayıtlı.');
+      return false;
+    }
+
+    const resolvedNewFactories = newFactories
+      .map((factoryId) => state.factories.find((factory) => factory.id === factoryId)?.name)
+      .filter(Boolean);
+
+    const newUser = {
+      id: generateUserId(),
+      name: newName,
+      email: newEmail,
+      password: newPassword,
+      roleId: newRole,
+      responsibleFactories: newRole === 'satis-operasyon' ? [] : resolvedNewFactories,
+      lastWarehouse:
+        newRole === 'satis-operasyon' ? null : resolvedNewFactories[0] ?? null
+    };
+
+    pendingUsers.push(newUser);
+    seenEmails.add(normalizedNewEmail);
+  }
+
+  const managerCount = pendingUsers.filter((user) => user.roleId === 'yonetici').length;
+  if (managerCount === 0) {
+    window.alert('Sistemde en az bir yönetici bulunmalıdır.');
+    return false;
+  }
+
+  state.users = pendingUsers;
+
+  if (state.activeUserId && !state.users.some((user) => user.id === state.activeUserId)) {
+    performLogout();
+  }
 
   updateUserArea();
   return true;
