@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sevkiyat Takip Paneli</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="Styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <nav class="main-nav">
+        <button class="nav-item active" data-tab="siparisler">Siparişler</button>
+        <button class="nav-item" data-tab="arsiv">Arşiv Siparişler</button>
+        <button class="nav-item" data-tab="urun">Ürün Yönetimi</button>
+        <button class="nav-item" data-tab="hat">Hat Yönetimi</button>
+      </nav>
+      <div class="user-area">
+        <div class="user-field">
+          <span class="user-label">Aktif Kullanıcı</span>
+          <span id="user-name" class="user-name">Giriş yapınız</span>
+        </div>
+        <div class="user-field">
+          <span class="user-label">Rol</span>
+          <span id="role-display" class="role-badge">-</span>
+        </div>
+        <div class="user-field">
+          <span class="user-label">Kullanıcı Ambarı</span>
+          <select id="warehouse-select" class="warehouse-select" disabled></select>
+        </div>
+        <button id="manage-roles-btn" class="btn ghost small">Rol Yönetimi</button>
+        <button id="logout-btn" class="btn ghost small hidden">Çıkış Yap</button>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <section id="tab-siparisler" class="tab-view active">
+        <div class="orders-layout">
+          <div class="card orders-card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Siparişler</h2>
+                <p class="card-subtitle">Aktif sevkiyatlarınızı yönetin ve detayları görüntüleyin.</p>
+              </div>
+              <div class="card-actions">
+                <button id="add-order-btn" class="btn primary">Sipariş Ekle</button>
+                <button id="delete-order-btn" class="btn ghost">Sipariş Sil</button>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="orders-table" aria-describedby="Aktif sipariş listesi">
+                <thead>
+                  <tr>
+                    <th>Detay</th>
+                    <th>Sipariş Tarihi</th>
+                    <th>Fatura Numarası</th>
+                    <th>Tür</th>
+                    <th>Hat</th>
+                    <th>Cari İsmi</th>
+                    <th>Durum</th>
+                    <th>Son İşlem Tarihi</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside class="card order-detail" id="order-detail">
+            <!-- Order detail renders here -->
+          </aside>
+        </div>
+      </section>
+
+      <section id="tab-arsiv" class="tab-view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Arşivlenmiş Siparişler</h2>
+              <p class="card-subtitle">Tamamlanan sevkiyat kayıtlarına hızlı erişim sağlayın.</p>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="orders-table" aria-describedby="Arşiv sipariş listesi">
+              <thead>
+                <tr>
+                  <th>Sipariş Tarihi</th>
+                  <th>Fatura No</th>
+                  <th>Tür</th>
+                  <th>Hat</th>
+                  <th>Cari</th>
+                  <th>Son Durak</th>
+                  <th>Son Teslimat</th>
+                </tr>
+              </thead>
+              <tbody id="archive-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-urun" class="tab-view">
+        <div class="product-layout">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Ürün Yönetimi</h2>
+                <p class="card-subtitle">Ürünlerin bağlı olduğu üretim tesislerini güncelleyin.</p>
+              </div>
+              <button id="add-product-btn" class="btn primary">Ürün Ekle</button>
+            </div>
+            <div class="table-wrapper">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th>Ürün Kodu</th>
+                    <th>Ürün Adı</th>
+                    <th>Üretim Fabrikası</th>
+                    <th>Ürün Grupları</th>
+                  </tr>
+                </thead>
+                <tbody id="product-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card" id="product-guide">
+            <div class="card-header">
+              <h3 class="card-title">Üretim Lokasyonları</h3>
+            </div>
+            <ul class="factory-list" id="factory-summary"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-hat" class="tab-view">
+        <div class="hat-layout">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Ambarınıza Gelen Siparişler</h2>
+                <p class="card-subtitle">Giriş onayını vererek bir sonraki durağa yönlendirin.</p>
+              </div>
+            </div>
+            <div class="hat-list" id="incoming-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Ambarınızdan Çıkan Siparişler</h2>
+                <p class="card-subtitle">Sevk hazırlıklarını tamamlayıp yüklemeye yönlendirin.</p>
+              </div>
+              <button id="dispatch-all-btn" class="btn primary">Ambardan Sipariş Çıkar</button>
+            </div>
+            <div class="hat-list" id="outgoing-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="modal">
+    <div class="modal-content" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 id="modal-title">Yeni Kayıt</h3>
+        <button class="modal-close" id="modal-close" aria-label="Kapat">×</button>
+      </div>
+      <form id="modal-form"></form>
+    </div>
+  </div>
+
+  <div class="login-overlay" id="login-overlay">
+    <form id="login-form" class="login-card">
+      <h2>Sevkiyat Paneline Giriş</h2>
+      <p class="form-hint">Lütfen kayıtlı kullanıcı bilgilerinizle giriş yapın.</p>
+      <div class="form-group">
+        <label for="login-email">E-posta</label>
+        <input type="email" id="login-email" name="email" placeholder="ornek@firma.com" required />
+      </div>
+      <div class="form-group">
+        <label for="login-password">Parola</label>
+        <input type="password" id="login-password" name="password" placeholder="••••••••" required />
+      </div>
+      <p id="login-error" class="form-error" aria-live="polite"></p>
+      <button type="submit" class="btn primary full">Giriş Yap</button>
+    </form>
+  </div>
+
+  <template id="order-detail-template">
+    <div class="detail-header">
+      <button class="btn ghost" data-action="back">Geri Dön</button>
+      <div class="detail-meta">
+        <div>
+          <span class="meta-label">Sipariş Tarihi</span>
+          <span class="meta-value" data-field="orderDate"></span>
+        </div>
+        <div>
+          <span class="meta-label">Fatura Numarası</span>
+          <span class="meta-value" data-field="invoiceNumber"></span>
+        </div>
+        <div>
+          <span class="meta-label">Hat Birleştirme</span>
+          <span class="meta-value" data-field="routeType"></span>
+        </div>
+        <div>
+          <span class="meta-label">Cari Bilgisi</span>
+          <span class="meta-value" data-field="accountName"></span>
+        </div>
+      </div>
+    </div>
+    <div class="detail-body">
+      <section class="detail-section">
+        <h3>Ürün Listesi</h3>
+        <ul class="product-list" data-field="productList"></ul>
+        <button class="btn secondary" data-action="add-estimate">Tahmini Teslimat Zamanı Ekle</button>
+      </section>
+      <section class="detail-section">
+        <h3>Son Sevk Adresi</h3>
+        <div class="detail-destination" data-field="destinationDetails">
+          <p><strong>Cari Konum:</strong> <span data-field="currentLocation"></span></p>
+          <p><strong>Sıradaki Konum:</strong> <span data-field="nextLocation"></span></p>
+          <p><strong>Tahmini Teslimat:</strong> <span data-field="estimatedDelivery"></span></p>
+          <p><strong>Son Sevk Adresi:</strong> <span data-field="finalDestination"></span></p>
+        </div>
+      </section>
+      <section class="detail-section">
+        <h3>Sevk Durumu</h3>
+        <ul class="status-list" data-field="statusHistory"></ul>
+      </section>
+      <section class="detail-section">
+        <h3>Hat Adımları</h3>
+        <ul class="stage-list" data-field="stages"></ul>
+      </section>
+      <section class="detail-section">
+        <h3>Sipariş Bilgilerini Güncelle</h3>
+        <label for="order-current-location">Cari Konumu</label>
+        <input id="order-current-location" type="text" data-field="currentLocationInput" placeholder="Örn. İstanbul Şirin Fabrika" />
+        <label for="order-next-location">Sıradaki Konum</label>
+        <input id="order-next-location" type="text" data-field="nextLocationInput" placeholder="Örn. Aksaray Merkez Fabrika" />
+        <label for="order-estimate">Tahmini Teslimat</label>
+        <input id="order-estimate" type="datetime-local" data-field="estimateInput" />
+        <label for="order-note">Durum Notu</label>
+        <textarea id="order-note" data-field="noteInput" placeholder="Kayda geçmek istediğiniz güncelleme notunu yazın."></textarea>
+        <div class="detail-actions">
+          <button class="btn primary" data-action="save-order">Kaydet</button>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <script src="App.js"></script>
+</body>
+</html>
