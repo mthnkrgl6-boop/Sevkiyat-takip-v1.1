@@ -926,6 +926,30 @@ body {
   width: 100%;
 }
 
+#product-table-body input[type='text'],
+#product-table-body select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  color: var(--navy-900);
+}
+
+.product-actions-cell {
+  min-width: 150px;
+  text-align: right;
+}
+
+.product-actions-cell .btn {
+  min-width: 0;
+}
+
+.product-actions-cell .btn + .btn {
+  margin-left: 8px;
+}
+
 .product-origin {
   font-size: 13px;
   color: var(--accent-dark);

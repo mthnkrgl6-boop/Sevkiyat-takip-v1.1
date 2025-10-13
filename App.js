@@ -1,15 +1,15 @@
 const roleDefinitions = {
   'satis-operasyon': {
     name: 'Satış Operasyon',
-    permissions: { addOrder: true, manageRoles: false }
+    permissions: { addOrder: true, manageRoles: false, manageProducts: false }
   },
   'ambar-sorumlusu': {
     name: 'Ambar Sorumlusu',
-    permissions: { addOrder: false, manageRoles: false }
+    permissions: { addOrder: false, manageRoles: false, manageProducts: false }
   },
   yonetici: {
     name: 'Yönetici',
-    permissions: { addOrder: true, manageRoles: true }
+    permissions: { addOrder: true, manageRoles: true, manageProducts: true }
   }
 };
 
@@ -938,7 +938,13 @@ function bindGlobalActions() {
     }
     openModal('order');
   });
-  document.getElementById('add-product-btn').addEventListener('click', () => openModal('product'));
+  document.getElementById('add-product-btn').addEventListener('click', () => {
+    if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+      window.alert('Ürün ekleme işlemi yalnızca yöneticiler tarafından yapılabilir.');
+      return;
+    }
+    openModal('product');
+  });
   document.getElementById('delete-order-btn').addEventListener('click', deleteActiveOrder);
   document.getElementById('dispatch-all-btn').addEventListener('click', dispatchAllFromWarehouse);
   document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -956,7 +962,11 @@ function bindGlobalActions() {
   outgoingList.addEventListener('click', handleOutgoingAction);
   outgoingList.addEventListener('input', handleOutgoingAction);
   outgoingList.addEventListener('change', handleOutgoingAction);
-  document.getElementById('product-table-body').addEventListener('change', handleProductFactoryChange);
+  const productTableBody = document.getElementById('product-table-body');
+  if (productTableBody) {
+    productTableBody.addEventListener('change', handleProductTableChange);
+    productTableBody.addEventListener('click', handleProductTableClick);
+  }
 }
 
 function setupWarehouseSelect() {
@@ -1116,6 +1126,15 @@ function updatePermissionSensitiveUI() {
     deleteOrderBtn.title = canDelete
       ? 'Seçili siparişi silin'
       : 'Sipariş silme işlemi yalnızca yetkili roller tarafından yapılabilir.';
+  }
+
+  const addProductBtn = document.getElementById('add-product-btn');
+  if (addProductBtn) {
+    const canManageProducts = isAuthenticated() && userHasPermission('manageProducts');
+    addProductBtn.disabled = !canManageProducts;
+    addProductBtn.title = canManageProducts
+      ? 'Yeni ürün ekleyin'
+      : 'Ürün yönetimi yalnızca yöneticiler tarafından yapılabilir.';
   }
 }
 
@@ -1517,30 +1536,91 @@ function renderArchive() {
 
 function renderProductManagement() {
   const tbody = document.getElementById('product-table-body');
+  if (!tbody) {
+    return;
+  }
   tbody.innerHTML = '';
+
+  const isLoggedIn = isAuthenticated();
+  const canManageProducts = isLoggedIn && userHasPermission('manageProducts');
 
   state.productCatalog.forEach((product) => {
     const tr = document.createElement('tr');
+    tr.dataset.productCode = product.code;
     const codeCell = document.createElement('td');
     codeCell.textContent = product.code;
     const nameCell = document.createElement('td');
-    nameCell.textContent = product.name;
+    if (canManageProducts) {
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = product.name;
+      nameInput.dataset.productCode = product.code;
+      nameInput.dataset.field = 'name';
+      nameInput.placeholder = 'Ürün adı';
+      nameCell.appendChild(nameInput);
+    } else {
+      nameCell.textContent = product.name;
+    }
     const factoryCell = document.createElement('td');
     const groupCell = document.createElement('td');
-    groupCell.textContent = product.groups.join(', ');
+    const productGroups = Array.isArray(product.groups) && product.groups.length > 0
+      ? product.groups
+      : ['Tanımsız Grup'];
 
-    const select = document.createElement('select');
-    select.dataset.productCode = product.code;
-    state.factories.forEach((factory) => {
-      const option = document.createElement('option');
-      option.value = factory.id;
-      option.textContent = factory.name;
-      select.appendChild(option);
-    });
-    select.value = product.factoryId;
-    factoryCell.appendChild(select);
+    if (canManageProducts) {
+      const select = document.createElement('select');
+      select.dataset.productCode = product.code;
+      select.dataset.field = 'factoryId';
+      state.factories.forEach((factory) => {
+        const option = document.createElement('option');
+        option.value = factory.id;
+        option.textContent = factory.name;
+        select.appendChild(option);
+      });
+      if (product.factoryId && state.factories.some((factory) => factory.id === product.factoryId)) {
+        select.value = product.factoryId;
+      } else if (select.options.length > 0) {
+        select.selectedIndex = 0;
+      }
+      factoryCell.appendChild(select);
 
-    tr.append(codeCell, nameCell, factoryCell, groupCell);
+      const groupsInput = document.createElement('input');
+      groupsInput.type = 'text';
+      groupsInput.value = productGroups.join(', ');
+      groupsInput.dataset.productCode = product.code;
+      groupsInput.dataset.field = 'groups';
+      groupsInput.placeholder = 'Grup (virgülle)';
+      groupCell.appendChild(groupsInput);
+    } else {
+      factoryCell.textContent = getFactoryNameById(product.factoryId) || '-';
+      groupCell.textContent = productGroups.join(', ');
+    }
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'product-actions-cell';
+
+    if (canManageProducts) {
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'btn secondary small';
+      saveBtn.dataset.action = 'save-product';
+      saveBtn.dataset.productCode = product.code;
+      saveBtn.textContent = 'Kaydet';
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'btn ghost small';
+      deleteBtn.dataset.action = 'delete-product';
+      deleteBtn.dataset.productCode = product.code;
+      deleteBtn.textContent = 'Sil';
+
+      actionsCell.append(saveBtn, deleteBtn);
+    } else {
+      const actionMessage = isLoggedIn ? 'Yetkiniz yok' : 'Giriş yapın';
+      actionsCell.innerHTML = `<span class="muted">${actionMessage}</span>`;
+    }
+
+    tr.append(codeCell, nameCell, factoryCell, groupCell, actionsCell);
     tbody.appendChild(tr);
   });
 }
@@ -2120,19 +2200,144 @@ function handleOutgoingAction(event) {
   }
 }
 
-function handleProductFactoryChange(event) {
-  const select = event.target;
-  if (!select.dataset.productCode) {
+function handleProductTableChange(event) {
+  const target = event.target;
+  if (!target) {
     return;
   }
 
-  const product = state.productCatalog.find((item) => item.code === select.dataset.productCode);
+  if (target.dataset.field !== 'factoryId' || !target.dataset.productCode) {
+    return;
+  }
+
+  if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+    renderProductManagement();
+    return;
+  }
+
+  updateProductField(target.dataset.productCode, 'factoryId', target.value);
+}
+
+function handleProductTableClick(event) {
+  const button = event.target.closest('button[data-action]');
+  if (!button) {
+    return;
+  }
+
+  const productCode = button.dataset.productCode;
+  if (!productCode) {
+    return;
+  }
+
+  if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+    window.alert('Bu işlem yalnızca yöneticiler tarafından gerçekleştirilebilir.');
+    return;
+  }
+
+  if (button.dataset.action === 'delete-product') {
+    deleteProduct(productCode);
+    return;
+  }
+
+  if (button.dataset.action === 'save-product') {
+    saveProductEdits(productCode, button.closest('tr'));
+  }
+}
+
+function updateProductField(code, field, value) {
+  const product = state.productCatalog.find((item) => item.code === code);
   if (!product) {
     return;
   }
 
-  product.factoryId = select.value;
+  if (field === 'factoryId') {
+    product.factoryId = value;
+  } else if (field === 'name') {
+    product.name = value;
+  } else if (field === 'groups') {
+    if (Array.isArray(value)) {
+      product.groups = value;
+    } else if (typeof value === 'string') {
+      product.groups = value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
   renderFactorySummary();
+  schedulePersist();
+}
+
+function saveProductEdits(code, row) {
+  if (!row) {
+    return;
+  }
+
+  const nameInput = row.querySelector("input[data-field='name']");
+  const groupInput = row.querySelector("input[data-field='groups']");
+  const factorySelect = row.querySelector("select[data-field='factoryId']");
+
+  const nameValue = (nameInput?.value || '').trim();
+  if (!nameValue) {
+    window.alert('Ürün adı boş bırakılamaz.');
+    return;
+  }
+
+  const groupsRaw = groupInput?.value || '';
+  const groups = groupsRaw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const product = state.productCatalog.find((item) => item.code === code);
+  if (!product) {
+    return;
+  }
+
+  product.name = nameValue;
+  product.groups = groups.length ? groups : ['Tanımsız Grup'];
+  if (factorySelect) {
+    product.factoryId = factorySelect.value;
+  }
+
+  renderFactorySummary();
+  schedulePersist();
+
+  if (groupInput) {
+    groupInput.value = groups.length ? groups.join(', ') : 'Tanımsız Grup';
+  }
+  if (nameInput) {
+    nameInput.value = nameValue;
+  }
+
+  renderProductManagement();
+}
+
+function deleteProduct(code) {
+  const product = state.productCatalog.find((item) => item.code === code);
+  if (!product) {
+    return;
+  }
+
+  const activeUsageCount = state.orders.filter((order) =>
+    Array.isArray(order.products) && order.products.some((item) => item.code === code)
+  ).length;
+  const archivedUsageCount = state.archivedOrders.filter((order) =>
+    Array.isArray(order.products) && order.products.some((item) => item.code === code)
+  ).length;
+  const usageNote = activeUsageCount + archivedUsageCount > 0
+    ? ` Bu ürün ${activeUsageCount} aktif ve ${archivedUsageCount} arşiv siparişinde kayıtlı.`
+    : '';
+  const confirmMessage = `"${product.name}" ürününü silmek istediğinize emin misiniz?${usageNote}`;
+  if (!window.confirm(confirmMessage)) {
+    return;
+  }
+
+  state.productCatalog = state.productCatalog.filter((item) => item.code !== code);
+  renderProductManagement();
+  renderFactorySummary();
+  schedulePersist();
 }
 
 function openModal(type) {
@@ -2677,16 +2882,48 @@ function addOrderFromForm(formData) {
 }
 
 function addProductFromForm(formData) {
-  const code = formData.get('productCode');
-  const name = formData.get('productName');
+  if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+    window.alert('Ürün ekleme yetkiniz bulunmuyor.');
+    return false;
+  }
+
+  const codeInput = (formData.get('productCode') || '').toString().trim();
+  const code = codeInput.toUpperCase();
+  const nameInput = (formData.get('productName') || '').toString().trim();
   const factoryId = formData.get('factoryId');
-  const groupsInput = formData.get('productGroups') || '';
+  const groupsInput = (formData.get('productGroups') || '').toString();
   const groups = groupsInput
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 
-  state.productCatalog.unshift({ code, name, factoryId, groups: groups.length ? groups : ['Tanımsız Grup'] });
+  if (!code) {
+    window.alert('Ürün kodu boş bırakılamaz.');
+    return false;
+  }
+
+  const duplicate = state.productCatalog.some((product) => product.code.toUpperCase() === code);
+  if (duplicate) {
+    window.alert('Bu ürün kodu zaten kayıtlı.');
+    return false;
+  }
+
+  if (!nameInput) {
+    window.alert('Ürün adı boş bırakılamaz.');
+    return false;
+  }
+
+  if (!factoryId) {
+    window.alert('Üretim fabrikasını seçmelisiniz.');
+    return false;
+  }
+
+  state.productCatalog.unshift({
+    code,
+    name: nameInput,
+    factoryId,
+    groups: groups.length ? groups : ['Tanımsız Grup']
+  });
   return true;
 }
 
