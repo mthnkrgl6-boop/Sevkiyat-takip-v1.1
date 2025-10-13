@@ -99,7 +99,7 @@ const provinceOptions = [
   'Zonguldak'
 ];
 
-const factories = [
+const defaultFactories = [
   {
     id: 'istanbul-sirin',
     name: 'İstanbul Şirin Fabrika',
@@ -142,235 +142,258 @@ const warehouseDisplayNames = {
   'Aksaray Merkez Fabrika': 'Aksaray',
   'Aksaray Altyapı Fabrika': 'Aksaray Altyapı'
 };
-
-const users = [
-  {
-    id: 'user-1',
-    name: 'Ayşe Kurt',
-    email: 'ayse.kurt@firma.com',
-    password: 'ayse123',
-    roleId: 'satis-operasyon',
-    responsibleFactories: [],
-    lastWarehouse: null
-  },
-  {
-    id: 'user-2',
-    name: 'Burak Aslan',
-    email: 'burak.aslan@firma.com',
-    password: 'burak123',
-    roleId: 'ambar-sorumlusu',
-    responsibleFactories: ['Aksaray Merkez Fabrika'],
-    lastWarehouse: 'Aksaray Merkez Fabrika'
-  },
-  {
-    id: 'user-3',
-    name: 'Derya Çetin',
-    email: 'derya.cetin@firma.com',
-    password: 'derya123',
-    roleId: 'yonetici',
-    responsibleFactories: factories.map((factory) => factory.name),
-    lastWarehouse: 'Aksaray Merkez Fabrika'
-  }
+const defaultProductCatalog = [
+  { code: 'MET-001', name: 'Galvaniz Dirsek', factoryId: 'istanbul-sirin', groups: ['Metal Ürünler'] },
+  { code: 'PPR-110', name: 'PPRC Boru 110mm', factoryId: 'aksaray-merkez', groups: ['PPRC Borular'] },
+  { code: 'PVC-063', name: 'PVC Boru 63mm', factoryId: 'sakarya', groups: ['PVC Borular'] },
+  { code: 'RAD-500', name: 'Panel Radyatör 500/1000', factoryId: 'denizli', groups: ['Radyatör'] },
+  { code: 'FLEX-PEX', name: 'Flex Hortum Seti', factoryId: 'denizli', groups: ['Flex Ürünler'] },
+  { code: 'SESSIZ-100', name: 'Sessiz Boru DN100', factoryId: 'aksaray-merkez', groups: ['Sessiz Boru'] },
+  { code: 'KRG-400', name: 'Koruge Boru 400mm', factoryId: 'aksaray-altyapi', groups: ['Koruge'] },
+  { code: 'PE100-225', name: 'PE100 Basınçlı Hat 225mm', factoryId: 'aksaray-altyapi', groups: ['PE100 Hatları'] }
 ];
 
-const state = {
-  factories,
-  users,
-  session: {
-    isAuthenticated: false,
-    loginAt: null
-  },
-  activeUserId: null,
-  orders: [
-    {
-      id: 'ORD-235664',
-      revisionOf: 'ORD-235664',
-      orderDate: '01.12.2024 11:40',
-      invoiceNumber: '235664',
-      type: 'Şantiye',
-      routeType: 'Birleştirme',
-      accountName: 'Mec Tesisat',
-      currentLocation: 'İstanbul Şirin Fabrika',
-      nextLocation: 'Aksaray Merkez Fabrika',
-      estimatedDelivery: '15.12.2024',
-      lastUpdate: '09.11.2024 14:40',
-      finalDestination: 'Hatay Çekmece Konut Projesi Şantiyesi',
-      routeMap: {
-        start: { province: 'İstanbul', position: { x: 22, y: 32 } },
-        consolidation: { province: 'Aksaray', position: { x: 56, y: 58 } },
-        final: { province: 'Hatay', position: { x: 80, y: 82 } }
-      },
-      consolidationPoint: 'Aksaray Merkez Fabrika',
-      statusHistory: [
-        { timestamp: '09.11.2024 10:15', note: 'İstanbul Şirin: Metal ürünler üretimden çıktı.' },
-        { timestamp: '09.11.2024 14:40', note: 'Metal hat sevkiyatı İstanbul Şirin fabrikadan yola çıktı.' }
-      ],
-      products: [
-        { code: '332E-M-800150', name: 'Metal Kelepçe Seti', qty: 200, origin: 'İstanbul Şirin Fabrika' },
-        { code: '332E-S-900480', name: 'Sessiz Boru DN100', qty: 120, origin: 'Aksaray Merkez Fabrika' }
-      ],
-      stages: [
-        {
-          id: 'ORD-235664-1',
-          from: 'İstanbul Şirin Fabrika',
-          to: 'Aksaray Merkez Fabrika',
-          plannedStart: '09.11.2024',
-          plannedArrival: '11.11.2024',
-          transport: 'İç Transfer Tır',
-          note: 'Metal ürünler Aksaray Merkezde sessiz borularla birleştirilecek.',
-          responsible: 'İstanbul Şirin Lojistik',
-          progress: 2,
-          status: 'Yolda',
-          completed: false
-        },
-        {
-          id: 'ORD-235664-2',
-          from: 'Aksaray Merkez Fabrika',
-          to: 'Hatay Çekmece Konut Projesi Şantiyesi',
-          plannedStart: '12.11.2024',
-          plannedArrival: '15.11.2024',
-          transport: 'Tır',
-          note: 'Sessiz boru hattı ile konsolidasyon yapılacak.',
-          responsible: 'Aksaray Merkez Lojistik',
-          progress: 0,
-          status: 'Bekliyor',
-          completed: false
-        }
-      ]
+const STORAGE_KEY = 'kalde-shipment-state-v2';
+
+const storageAvailable = (() => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    const testKey = '__kalde_storage_test__';
+    window.localStorage.setItem(testKey, '1');
+    window.localStorage.removeItem(testKey);
+    return true;
+  } catch (error) {
+    return false;
+  }
+})();
+
+function cloneFactories(list) {
+  return (list || []).map((factory) => ({
+    ...factory,
+    productGroups: Array.isArray(factory.productGroups) ? factory.productGroups.slice() : []
+  }));
+}
+
+function cloneProductCatalog(list) {
+  return (list || []).map((product) => ({
+    ...product,
+    groups: Array.isArray(product.groups) ? product.groups.slice() : []
+  }));
+}
+
+function cloneUsers(list) {
+  return (list || []).map((user, index) => ({
+    id: user?.id ?? `user-${index + 1}`,
+    name: user?.name ?? `Kullanıcı ${index + 1}`,
+    email: user?.email ?? '',
+    password: user?.password ?? '',
+    roleId: user?.roleId ?? 'satis-operasyon',
+    responsibleFactories: Array.isArray(user?.responsibleFactories)
+      ? user.responsibleFactories.slice()
+      : [],
+    lastWarehouse: user?.lastWarehouse ?? null
+  }));
+}
+
+function createDefaultState() {
+  const factories = cloneFactories(defaultFactories);
+  const productCatalog = cloneProductCatalog(defaultProductCatalog);
+  const managerUser = {
+    id: 'user-1',
+    name: 'Metehan Kargili',
+    email: 'metehankargili@kaldeboru.com',
+    password: '123',
+    roleId: 'yonetici',
+    responsibleFactories: factories.map((factory) => factory.name),
+    lastWarehouse: factories[0]?.name ?? null
+  };
+
+  return {
+    factories,
+    users: [managerUser],
+    session: {
+      isAuthenticated: false,
+      loginAt: null
     },
-    {
-      id: 'ORD-336744',
-      revisionOf: 'ORD-336744',
-      orderDate: '05.12.2024 09:20',
-      invoiceNumber: '336744',
-      type: 'Bölge',
-      routeType: 'Direkt',
-      accountName: 'Ankara Bölge Müdürlüğü',
-      currentLocation: 'Aksaray Merkez Fabrika',
-      nextLocation: 'Ankara Bölge Müdürlüğü Deposu',
-      estimatedDelivery: '18.12.2024',
-      lastUpdate: '05.12.2024 09:45',
-      finalDestination: 'Ankara Bölge Müdürlüğü Deposu',
-      routeMap: {
-        start: { province: 'Aksaray', position: { x: 57, y: 56 } },
-        final: { province: 'Ankara', position: { x: 48, y: 44 } }
-      },
-      statusHistory: [
-        { timestamp: '05.12.2024 08:40', note: 'Aksaray Merkez: PPRC borular sevkiyat planına alındı.' },
-        { timestamp: '05.12.2024 09:45', note: 'Çıkış hazırlıkları tamamlanıyor.' }
-      ],
-      products: [
-        { code: 'PPRC-PP-110', name: 'PPRC Boru 110mm', qty: 300, origin: 'Aksaray Merkez Fabrika' },
-        { code: 'PPRC-FF-90', name: 'PPRC Fitting Seti', qty: 480, origin: 'Aksaray Merkez Fabrika' }
-      ],
-      stages: [
-        {
-          id: 'ORD-336744-1',
-          from: 'Aksaray Merkez Fabrika',
-          to: 'Ankara Bölge Müdürlüğü Deposu',
-          plannedStart: '06.12.2024',
-          plannedArrival: '08.12.2024',
-          transport: 'Kamyon',
-          note: 'Bölge stok yenileme sevkiyatı.',
-          responsible: 'Aksaray Merkez Sevkiyat',
-          progress: 1,
-          status: 'Hazırlanıyor',
-          completed: false
-        }
-      ]
-    },
-    {
-      id: 'ORD-363723',
-      revisionOf: 'ORD-363723',
-      orderDate: '09.11.2024 12:10',
-      invoiceNumber: '363723',
-      type: 'Müşteri Depo',
-      routeType: 'Direkt',
-      accountName: 'Malatya Malzeme Deposu',
-      currentLocation: 'İstanbul Şirin Fabrika',
-      nextLocation: 'Malatya Bölge Deposu',
-      estimatedDelivery: '20.11.2024',
-      lastUpdate: '09.11.2024 12:35',
-      finalDestination: 'Malatya Bölge Deposu',
-      routeMap: {
-        start: { province: 'İstanbul', position: { x: 22, y: 32 } },
-        final: { province: 'Malatya', position: { x: 72, y: 60 } }
-      },
-      statusHistory: [
-        { timestamp: '09.11.2024 12:10', note: 'İstanbul Şirin: Metal raf sistemleri paketlendi.' }
-      ],
-      products: [
-        { code: 'METAL-KONSTR-45', name: 'Metal Raf Profili', qty: 150, origin: 'İstanbul Şirin Fabrika' },
-        { code: 'PVC-SK-50', name: 'PVC Ek Parça Seti', qty: 200, origin: 'Sakarya Fabrika' }
-      ],
-      stages: [
-        {
-          id: 'ORD-363723-1',
-          from: 'İstanbul Şirin Fabrika',
-          to: 'Malatya Bölge Deposu',
-          plannedStart: '10.11.2024',
-          plannedArrival: '17.11.2024',
-          transport: 'Tır',
-          note: 'Metal ürün sevkiyatı.',
-          responsible: 'İstanbul Şirin Lojistik',
-          progress: 0,
-          status: 'Bekliyor',
-          completed: false
-        },
-        {
-          id: 'ORD-363723-2',
-          from: 'Sakarya Fabrika',
-          to: 'Malatya Bölge Deposu',
-          plannedStart: '11.11.2024',
-          plannedArrival: '17.11.2024',
-          transport: 'Tır',
-          note: 'PVC boru ve ek parçalar sevkiyatı.',
-          responsible: 'Sakarya Sevkiyat',
-          progress: 1,
-          status: 'Hazırlanıyor',
-          completed: false
-        }
-      ]
+    activeUserId: null,
+    orders: [],
+    archivedOrders: [],
+    productCatalog,
+    activeTab: 'siparisler',
+    activeOrderId: null,
+    activeWarehouse: factories[0]?.name ?? '',
+    warehouseReceipts: {},
+    modalType: null
+  };
+}
+
+function sanitizeUsers(persistedUsers, factories, fallbackUsers) {
+  if (!Array.isArray(persistedUsers)) {
+    return cloneUsers(fallbackUsers);
+  }
+
+  const knownFactories = new Set(factories.map((factory) => factory.name));
+  const validRoleIds = Object.keys(roleDefinitions);
+
+  const sanitized = persistedUsers
+    .map((user, index) => {
+      if (!user || typeof user !== 'object') {
+        return null;
+      }
+      const id = typeof user.id === 'string' && user.id.trim() ? user.id.trim() : `user-${index + 1}`;
+      const email = typeof user.email === 'string' ? user.email.trim() : '';
+      const password = typeof user.password === 'string' ? user.password : '';
+      if (!email || !password) {
+        return null;
+      }
+      const name = typeof user.name === 'string' && user.name.trim() ? user.name.trim() : email;
+      const roleId = validRoleIds.includes(user.roleId) ? user.roleId : 'satis-operasyon';
+      const responsibleFactories = Array.isArray(user.responsibleFactories)
+        ? user.responsibleFactories
+            .map((factoryName) => (typeof factoryName === 'string' ? factoryName.trim() : ''))
+            .filter((factoryName) => factoryName && knownFactories.has(factoryName))
+        : [];
+      const lastWarehouse =
+        typeof user.lastWarehouse === 'string' && knownFactories.has(user.lastWarehouse)
+          ? user.lastWarehouse
+          : null;
+
+      return {
+        id,
+        name,
+        email,
+        password,
+        roleId,
+        responsibleFactories,
+        lastWarehouse
+      };
+    })
+    .filter(Boolean);
+
+  if (sanitized.length === 0) {
+    return cloneUsers(fallbackUsers);
+  }
+
+  return sanitized;
+}
+
+function mergePersistedState(defaultState, persistedState) {
+  if (!persistedState || typeof persistedState !== 'object') {
+    return defaultState;
+  }
+
+  const merged = { ...defaultState };
+
+  merged.factories = Array.isArray(persistedState.factories) && persistedState.factories.length > 0
+    ? cloneFactories(persistedState.factories)
+    : defaultState.factories;
+
+  merged.users = sanitizeUsers(persistedState.users, merged.factories, defaultState.users);
+
+  merged.orders = Array.isArray(persistedState.orders) ? persistedState.orders.slice() : [];
+  merged.archivedOrders = Array.isArray(persistedState.archivedOrders)
+    ? persistedState.archivedOrders.slice()
+    : [];
+
+  merged.productCatalog = Array.isArray(persistedState.productCatalog) && persistedState.productCatalog.length > 0
+    ? cloneProductCatalog(persistedState.productCatalog)
+    : defaultState.productCatalog;
+
+  merged.session = {
+    isAuthenticated: Boolean(persistedState.session?.isAuthenticated),
+    loginAt:
+      typeof persistedState.session?.loginAt === 'string' && persistedState.session.loginAt.trim()
+        ? persistedState.session.loginAt.trim()
+        : null
+  };
+
+  merged.activeUserId = merged.users.some((user) => user.id === persistedState.activeUserId)
+    ? persistedState.activeUserId
+    : null;
+
+  if (!merged.activeUserId) {
+    merged.session.isAuthenticated = false;
+    merged.session.loginAt = null;
+  }
+
+  merged.activeWarehouse = merged.factories.some((factory) => factory.name === persistedState.activeWarehouse)
+    ? persistedState.activeWarehouse
+    : defaultState.activeWarehouse;
+
+  merged.activeTab = 'siparisler';
+  merged.activeOrderId = null;
+  merged.warehouseReceipts = {};
+  merged.modalType = null;
+
+  return merged;
+}
+
+function loadInitialState() {
+  const defaultState = createDefaultState();
+  if (!storageAvailable) {
+    return defaultState;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      return defaultState;
     }
-  ],
-  archivedOrders: [
-    {
-      id: 'ORD-IZM-225987',
-      orderDate: '12.08.2024 11:00',
-      invoiceNumber: '225987',
-      type: 'Şantiye',
-      routeType: 'Direkt',
-      accountName: 'İzmir Stadyum Projesi',
-      deliveredAt: '18.08.2024 17:40',
-      finalDestination: 'İzmir Stadyum Projesi Şantiyesi'
-    },
-    {
-      id: 'ORD-BRS-248991',
-      orderDate: '22.09.2024 15:20',
-      invoiceNumber: '248991',
-      type: 'Müşteri Depo',
-      routeType: 'Bölge',
-      accountName: 'Bursa Bölge Deposu',
-      deliveredAt: '26.09.2024 09:10',
-      finalDestination: 'Bursa Bölge Deposu'
-    }
-  ],
-  productCatalog: [
-    { code: 'MET-001', name: 'Galvaniz Dirsek', factoryId: 'istanbul-sirin', groups: ['Metal Ürünler'] },
-    { code: 'PPR-110', name: 'PPRC Boru 110mm', factoryId: 'aksaray-merkez', groups: ['PPRC Borular'] },
-    { code: 'PVC-063', name: 'PVC Boru 63mm', factoryId: 'sakarya', groups: ['PVC Borular'] },
-    { code: 'RAD-500', name: 'Panel Radyatör 500/1000', factoryId: 'denizli', groups: ['Radyatör'] },
-    { code: 'FLEX-PEX', name: 'Flex Hortum Seti', factoryId: 'denizli', groups: ['Flex Ürünler'] },
-    { code: 'SESSIZ-100', name: 'Sessiz Boru DN100', factoryId: 'aksaray-merkez', groups: ['Sessiz Boru'] },
-    { code: 'KRG-400', name: 'Koruge Boru 400mm', factoryId: 'aksaray-altyapi', groups: ['Koruge'] },
-    { code: 'PE100-225', name: 'PE100 Basınçlı Hat 225mm', factoryId: 'aksaray-altyapi', groups: ['PE100 Hatları'] }
-  ],
-  activeTab: 'siparisler',
-  activeOrderId: null,
-  activeWarehouse: factories[0]?.name ?? '',
-  warehouseReceipts: {},
-  modalType: null
-};
+    const parsed = JSON.parse(stored);
+    return mergePersistedState(defaultState, parsed);
+  } catch (error) {
+    console.error('Kaydedilmiş sevkiyat verileri yüklenemedi:', error);
+    return defaultState;
+  }
+}
+
+const state = loadInitialState();
+
+let persistTimer = null;
+
+function persistState() {
+  if (!storageAvailable || typeof window === 'undefined') {
+    return;
+  }
+
+  const snapshot = {
+    factories: state.factories,
+    users: state.users,
+    session: state.session,
+    activeUserId: state.activeUserId,
+    orders: state.orders,
+    archivedOrders: state.archivedOrders,
+    productCatalog: state.productCatalog,
+    activeWarehouse: state.activeWarehouse
+  };
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (error) {
+    console.error('Sevkiyat verileri kaydedilirken hata oluştu:', error);
+  }
+}
+
+if (storageAvailable && typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    persistState();
+  });
+}
+
+function schedulePersist() {
+  if (!storageAvailable) {
+    return;
+  }
+  if (persistTimer !== null) {
+    return;
+  }
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistState();
+  }, 100);
+}
 
 function getWarehouseDisplayName(factoryName) {
   if (!factoryName) {
@@ -488,6 +511,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initialiseOrders() {
   state.warehouseReceipts = {};
+  if (!Array.isArray(state.orders)) {
+    state.orders = [];
+    return;
+  }
+
   state.orders.forEach((order) => {
     prepareStageData(order);
     order.stages.forEach((stage) => {
@@ -502,6 +530,10 @@ function initialiseOrders() {
 function prepareStageData(order) {
   if (!order) {
     return;
+  }
+
+  if (!Array.isArray(order.stages)) {
+    order.stages = [];
   }
 
   if (order.routeType === 'Birleştirme') {
@@ -1133,6 +1165,21 @@ function initializeAuth() {
     return;
   }
 
+  if (state.session.isAuthenticated) {
+    const activeUser = getActiveUser();
+    if (!activeUser) {
+      state.session.isAuthenticated = false;
+      state.session.loginAt = null;
+      state.activeUserId = null;
+      schedulePersist();
+    } else {
+      const overlay = document.getElementById('login-overlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+    }
+  }
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const formData = new FormData(form);
@@ -1242,6 +1289,7 @@ function renderAll() {
   renderFactorySummary();
   renderHatManagement();
   updateUserArea();
+  schedulePersist();
 }
 
 function renderOrdersTable() {
@@ -1499,6 +1547,10 @@ function renderProductManagement() {
 
 function renderFactorySummary() {
   const list = document.getElementById('factory-summary');
+  if (!list) {
+    schedulePersist();
+    return;
+  }
   list.innerHTML = '';
 
   state.factories.forEach((factory) => {
@@ -1515,11 +1567,17 @@ function renderFactorySummary() {
     `;
     list.appendChild(li);
   });
+
+  schedulePersist();
 }
 
 function renderHatManagement() {
   const incomingContainer = document.getElementById('incoming-list');
   const outgoingContainer = document.getElementById('outgoing-list');
+  if (!incomingContainer || !outgoingContainer) {
+    schedulePersist();
+    return;
+  }
   incomingContainer.innerHTML = '';
   outgoingContainer.innerHTML = '';
 
@@ -1860,6 +1918,8 @@ function renderHatManagement() {
       outgoingContainer.appendChild(card);
     });
   }
+
+  schedulePersist();
 }
 
 function handleOrderTableClick(event) {
