@@ -138,15 +138,43 @@ const factories = [
 ];
 
 const users = [
-  { id: 'user-1', name: 'Ayşe Kurt', roleId: 'satis-operasyon', warehouse: 'İstanbul Şirin Fabrika' },
-  { id: 'user-2', name: 'Burak Aslan', roleId: 'ambar-sorumlusu', warehouse: 'Aksaray Merkez Fabrika' },
-  { id: 'user-3', name: 'Derya Çetin', roleId: 'yonetici', warehouse: 'Aksaray Merkez Fabrika' }
+  {
+    id: 'user-1',
+    name: 'Ayşe Kurt',
+    email: 'ayse.kurt@firma.com',
+    password: 'ayse123',
+    roleId: 'satis-operasyon',
+    responsibleFactories: [],
+    lastWarehouse: null
+  },
+  {
+    id: 'user-2',
+    name: 'Burak Aslan',
+    email: 'burak.aslan@firma.com',
+    password: 'burak123',
+    roleId: 'ambar-sorumlusu',
+    responsibleFactories: ['Aksaray Merkez Fabrika'],
+    lastWarehouse: 'Aksaray Merkez Fabrika'
+  },
+  {
+    id: 'user-3',
+    name: 'Derya Çetin',
+    email: 'derya.cetin@firma.com',
+    password: 'derya123',
+    roleId: 'yonetici',
+    responsibleFactories: factories.map((factory) => factory.name),
+    lastWarehouse: 'Aksaray Merkez Fabrika'
+  }
 ];
 
 const state = {
   factories,
   users,
-  activeUserId: users[0].id,
+  session: {
+    isAuthenticated: false,
+    loginAt: null
+  },
+  activeUserId: null,
   orders: [
     {
       id: 'ORD-235664',
@@ -333,7 +361,7 @@ const state = {
   ],
   activeTab: 'siparisler',
   activeOrderId: null,
-  activeWarehouse: users[0].warehouse,
+  activeWarehouse: factories[0]?.name ?? '',
   warehouseReceipts: {},
   modalType: null
 };
@@ -342,12 +370,73 @@ const modalState = {
   type: null
 };
 
+function isAuthenticated() {
+  return Boolean(state.session?.isAuthenticated);
+}
+
+function getActiveUser() {
+  if (!state.activeUserId) {
+    return null;
+  }
+  return state.users.find((user) => user.id === state.activeUserId) ?? null;
+}
+
+function authenticateUser(email, password) {
+  if (!email || !password) {
+    return null;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  return (
+    state.users.find(
+      (user) => user.email?.trim().toLowerCase() === normalizedEmail && user.password === password
+    ) ?? null
+  );
+}
+
+function defaultWarehouseForUser(user) {
+  if (!user) {
+    return state.factories[0]?.name ?? '';
+  }
+  if (user.lastWarehouse) {
+    return user.lastWarehouse;
+  }
+  if (Array.isArray(user.responsibleFactories) && user.responsibleFactories.length > 0) {
+    return user.responsibleFactories[0];
+  }
+  return state.factories[0]?.name ?? '';
+}
+
+function completeLogin(user) {
+  state.session.isAuthenticated = true;
+  state.session.loginAt = formatNow();
+  state.activeUserId = user.id;
+  const assignedWarehouse = defaultWarehouseForUser(user);
+  state.activeWarehouse = assignedWarehouse;
+  user.lastWarehouse = assignedWarehouse ?? null;
+  updateUserArea();
+  renderAll();
+}
+
+function performLogout() {
+  state.session.isAuthenticated = false;
+  state.session.loginAt = null;
+  state.activeUserId = null;
+  state.activeWarehouse = state.factories[0]?.name ?? '';
+  const errorLabel = document.getElementById('login-error');
+  if (errorLabel) {
+    errorLabel.textContent = '';
+  }
+  updateUserArea();
+  renderAll();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initialiseOrders();
   bindNavigation();
   bindGlobalActions();
   setupWarehouseSelect();
-  setupUserControls();
+  initializeHeaderControls();
+  initializeAuth();
   state.activeOrderId = state.orders[0]?.id ?? null;
   renderAll();
 });
@@ -467,6 +556,26 @@ function isSameLocationName(a, b) {
   return normalizedA === normalizedB;
 }
 
+function userCanManageFactory(factoryName) {
+  if (!factoryName) {
+    return false;
+  }
+  if (!isAuthenticated()) {
+    return false;
+  }
+  if (isManagerUser()) {
+    return true;
+  }
+  const activeUser = getActiveUser();
+  if (!activeUser) {
+    return false;
+  }
+  const assignments = Array.isArray(activeUser.responsibleFactories)
+    ? activeUser.responsibleFactories
+    : [];
+  return assignments.some((name) => isSameLocationName(name, factoryName));
+}
+
 function isProductManagedByStage(stage, product) {
   if (!stage || !product) {
     return true;
@@ -494,20 +603,31 @@ function canManageOutgoingStage(stage) {
   if (!stage) {
     return false;
   }
-  if (isManagerUser()) {
-    return true;
-  }
-  return isSameLocationName(stage.from, state.activeWarehouse);
+  return userCanManageFactory(stage.from);
 }
 
 function canManageIncomingStage(stage) {
   if (!stage) {
     return false;
   }
-  if (isManagerUser()) {
+  return userCanManageFactory(stage.to);
+}
+
+function inboundStagesCompleted(order, stage) {
+  if (!order || !stage) {
+    return false;
+  }
+  const inboundStages = order.stages.filter(
+    (candidate) => candidate.id !== stage.id && isSameLocationName(candidate.to, stage.from)
+  );
+  if (inboundStages.length === 0) {
     return true;
   }
-  return isSameLocationName(stage.to, state.activeWarehouse);
+  return inboundStages.every((candidate) => candidate.progress >= stageStatuses.length - 1);
+}
+
+function canOperateOutgoingStage(order, stage) {
+  return canManageOutgoingStage(stage) && inboundStagesCompleted(order, stage);
 }
 
 function isKnownFactoryLocation(name) {
@@ -520,6 +640,9 @@ function isKnownFactoryLocation(name) {
 
 function getManageableLineItemsForWarehouse(stage, warehouseName) {
   if (!stage || !Array.isArray(stage.lineItems)) {
+    return [];
+  }
+  if (!userCanManageFactory(warehouseName)) {
     return [];
   }
   return stage.lineItems.filter((item) => isSameLocationName(item.origin, warehouseName));
@@ -574,8 +697,11 @@ function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
     return;
   }
 
-  if (!canManageOutgoingStage(stage) || stage.progress >= 2) {
-    window.alert('Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.');
+  if (!canOperateOutgoingStage(order, stage) || stage.progress >= 2) {
+    const message = inboundStagesCompleted(order, stage)
+      ? 'Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.'
+      : 'Sipariş giriş onayı tamamlanmadan stok hazırlığı yapılamaz.';
+    window.alert(message);
     renderHatManagement();
     return;
   }
@@ -615,8 +741,11 @@ function setLineItemComplete(orderId, stageId, itemIndex) {
     return;
   }
 
-  if (!canManageOutgoingStage(stage) || stage.progress >= 2) {
-    window.alert('Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.');
+  if (!canOperateOutgoingStage(order, stage) || stage.progress >= 2) {
+    const message = inboundStagesCompleted(order, stage)
+      ? 'Bu aşamadaki stok hazırlığı sadece ilgili fabrika tarafından güncellenebilir.'
+      : 'Sipariş giriş onayı tamamlanmadan stok hazırlığı yapılamaz.';
+    window.alert(message);
     renderHatManagement();
     return;
   }
@@ -651,6 +780,12 @@ function toggleStageApproval(orderId, stageId, approved) {
 
   if (!canManageOutgoingStage(stage)) {
     window.alert('Bu sevkiyat durumunu yalnızca ilgili fabrikanın ekibi güncelleyebilir.');
+    renderHatManagement();
+    return false;
+  }
+
+  if (!inboundStagesCompleted(order, stage)) {
+    window.alert('Sipariş giriş onayı tamamlanmadan çıkış onayı verilemez.');
     renderHatManagement();
     return false;
   }
@@ -745,58 +880,74 @@ function setupWarehouseSelect() {
     state.activeWarehouse = event.target.value;
     const user = getActiveUser();
     if (user) {
-      user.warehouse = state.activeWarehouse;
+      user.lastWarehouse = state.activeWarehouse;
     }
+    updatePermissionSensitiveUI();
     renderHatManagement();
   });
 }
 
-function setupUserControls() {
-  const userSelect = document.getElementById('user-select');
-  if (userSelect) {
-    userSelect.innerHTML = state.users
-      .map((user) => `<option value="${user.id}">${user.name}</option>`)
-      .join('');
-    userSelect.value = state.activeUserId;
-    userSelect.addEventListener('change', (event) => {
-      state.activeUserId = event.target.value;
-      const activeUser = getActiveUser();
-      if (activeUser) {
-        state.activeWarehouse = activeUser.warehouse;
-      }
-      updateUserArea();
-      renderAll();
-    });
-  }
-
-  const manageRolesBtn = document.getElementById('manage-roles-btn');
-  if (manageRolesBtn) {
-    manageRolesBtn.addEventListener('click', () => {
-      if (!userHasPermission('manageRoles')) {
-        window.alert('Rol değişiklikleri yalnızca yöneticiler tarafından yapılabilir.');
-        return;
-      }
-      openModal('role');
-    });
-  }
-
-  updateUserArea();
-}
-
 function updateUserArea() {
-  const activeUser = getActiveUser();
-  if (activeUser) {
-    state.activeWarehouse = activeUser.warehouse;
-  }
-  updateUserSelect();
+  syncActiveWarehouse();
+  updateAuthDisplay();
   updateWarehouseSelect();
   updateRoleDisplay();
   updatePermissionSensitiveUI();
   updateRoleManagementVisibility();
 }
 
-function getActiveUser() {
-  return state.users.find((user) => user.id === state.activeUserId) ?? null;
+function syncActiveWarehouse() {
+  const availableWarehouses = state.factories.map((factory) => factory.name);
+  if (!availableWarehouses.includes(state.activeWarehouse)) {
+    state.activeWarehouse = availableWarehouses[0] ?? '';
+  }
+
+  const activeUser = getActiveUser();
+  if (!activeUser) {
+    return;
+  }
+
+  if (activeUser.lastWarehouse) {
+    state.activeWarehouse = activeUser.lastWarehouse;
+    return;
+  }
+
+  const fallback = defaultWarehouseForUser(activeUser);
+  if (fallback) {
+    activeUser.lastWarehouse = fallback;
+    state.activeWarehouse = fallback;
+  }
+}
+
+function updateAuthDisplay() {
+  const userName = document.getElementById('user-name');
+  const logoutBtn = document.getElementById('logout-btn');
+  const overlay = document.getElementById('login-overlay');
+  const activeUser = getActiveUser();
+
+  if (isAuthenticated() && activeUser) {
+    if (userName) {
+      userName.textContent = activeUser.name;
+    }
+    if (logoutBtn) {
+      logoutBtn.classList.remove('hidden');
+      logoutBtn.disabled = false;
+    }
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  } else {
+    if (userName) {
+      userName.textContent = 'Giriş yapınız';
+    }
+    if (logoutBtn) {
+      logoutBtn.classList.add('hidden');
+      logoutBtn.disabled = true;
+    }
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+  }
 }
 
 function getRoleDefinition(roleId) {
@@ -816,17 +967,11 @@ function userHasPermission(permission) {
   return Boolean(role?.permissions?.[permission]);
 }
 
-function updateUserSelect() {
-  const userSelect = document.getElementById('user-select');
-  if (userSelect) {
-    userSelect.value = state.activeUserId;
-  }
-}
-
 function updateWarehouseSelect() {
   const select = document.getElementById('warehouse-select');
   if (select) {
     select.value = state.activeWarehouse;
+    select.disabled = !isAuthenticated();
   }
 }
 
@@ -841,21 +986,109 @@ function updateRoleDisplay() {
 function updatePermissionSensitiveUI() {
   const addOrderBtn = document.getElementById('add-order-btn');
   if (addOrderBtn) {
-    const canAddOrder = userHasPermission('addOrder');
+    const canAddOrder = isAuthenticated() && userHasPermission('addOrder');
     addOrderBtn.disabled = !canAddOrder;
     addOrderBtn.title = canAddOrder
       ? 'Yeni sipariş ekleyin'
       : 'Sipariş ekleme işlemi Satış Operasyon rolü tarafından yapılabilir.';
+  }
+
+  const dispatchAllBtn = document.getElementById('dispatch-all-btn');
+  if (dispatchAllBtn) {
+    const canDispatch = isAuthenticated() && userCanManageFactory(state.activeWarehouse);
+    dispatchAllBtn.disabled = !canDispatch;
+    dispatchAllBtn.title = canDispatch
+      ? 'Seçili ambardaki onaylı sevkiyatları gönderin.'
+      : isAuthenticated()
+          ? 'Bu ambarda işlem yapma yetkiniz bulunmuyor.'
+          : 'Önce giriş yapmalısınız.';
+  }
+
+  const deleteOrderBtn = document.getElementById('delete-order-btn');
+  if (deleteOrderBtn) {
+    const canDelete = isAuthenticated() && isManagerUser();
+    deleteOrderBtn.disabled = !canDelete;
+    deleteOrderBtn.title = canDelete
+      ? 'Seçili siparişi silin'
+      : 'Sipariş silme işlemi yalnızca yöneticilere açıktır.';
   }
 }
 
 function updateRoleManagementVisibility() {
   const manageRolesBtn = document.getElementById('manage-roles-btn');
   if (manageRolesBtn) {
-    const canManage = userHasPermission('manageRoles');
+    const canManage = isAuthenticated() && userHasPermission('manageRoles');
     manageRolesBtn.classList.toggle('hidden', !canManage);
     manageRolesBtn.disabled = !canManage;
   }
+}
+
+function initializeHeaderControls() {
+  const manageRolesBtn = document.getElementById('manage-roles-btn');
+  if (manageRolesBtn) {
+    manageRolesBtn.addEventListener('click', () => {
+      if (!isAuthenticated() || !userHasPermission('manageRoles')) {
+        window.alert('Rol değişiklikleri yalnızca yöneticiler tarafından yapılabilir.');
+        return;
+      }
+      openModal('role');
+    });
+  }
+
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (!isAuthenticated()) {
+        return;
+      }
+      performLogout();
+      const loginEmail = document.getElementById('login-email');
+      if (loginEmail) {
+        loginEmail.focus();
+      }
+    });
+  }
+
+  updateUserArea();
+}
+
+function initializeAuth() {
+  const form = document.getElementById('login-form');
+  const errorLabel = document.getElementById('login-error');
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const email = formData.get('email');
+    const password = formData.get('password');
+
+    const user = authenticateUser(email, password);
+    if (!user) {
+      if (errorLabel) {
+        errorLabel.textContent = 'E-posta veya parola hatalı. Lütfen tekrar deneyin.';
+      }
+      return;
+    }
+
+    if (errorLabel) {
+      errorLabel.textContent = '';
+    }
+
+    completeLogin(user);
+    form.reset();
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.focus();
+    }
+  });
 }
 
 function getFactoryNameById(factoryId) {
@@ -1027,6 +1260,14 @@ function renderOrderDetail() {
       btn.dataset.stageId = stage.id;
       btn.dataset.orderId = order.id;
       btn.textContent = 'Sonraki Durum';
+      const inboundReady = inboundStagesCompleted(order, stage);
+      const canAdvance = canAdvanceStageAction(order, stage);
+      btn.disabled = !canAdvance;
+      btn.title = canAdvance
+        ? 'Aşamayı ilerletin'
+        : inboundReady
+            ? 'Bu aşama ilgili fabrikanın onayı olmadan ilerletilemez.'
+            : 'Giriş onayı tamamlanmadan aşama ilerletilemez.';
       actions.appendChild(btn);
       li.appendChild(actions);
     }
@@ -1235,7 +1476,8 @@ function renderHatManagement() {
       card.className = 'hat-card';
 
       const hasLineItems = Array.isArray(stage.lineItems) && stage.lineItems.length > 0;
-      const manageAllowed = canManageOutgoingStage(stage);
+      const inboundReady = inboundStagesCompleted(order, stage);
+      const manageAllowed = canOperateOutgoingStage(order, stage);
       const hasMissing =
         hasLineItems &&
         stage.lineItems.some((item) => item?.isLocal !== false && Number(item.missingQty) > 0);
@@ -1275,6 +1517,13 @@ function renderHatManagement() {
       const responsible = document.createElement('span');
       responsible.textContent = `Sorumlu: ${stage.responsible}`;
       card.appendChild(responsible);
+
+      if (!inboundReady) {
+        const inboundNotice = document.createElement('span');
+        inboundNotice.className = 'muted info-line';
+        inboundNotice.textContent = 'Giriş onayı tamamlanana kadar bu sevkiyat hazırlıkları kilitlidir.';
+        card.appendChild(inboundNotice);
+      }
 
       if (hasLineItems) {
         const table = document.createElement('table');
@@ -1421,7 +1670,9 @@ function renderHatManagement() {
         sendBtn.textContent = 'Gönder';
         if (!manageAllowed) {
           sendBtn.disabled = true;
-          sendBtn.title = 'Bu sevkiyat farklı bir fabrika tarafından yönetiliyor.';
+          sendBtn.title = inboundReady
+            ? 'Bu sevkiyat farklı bir fabrika tarafından yönetiliyor.'
+            : 'Giriş onayı tamamlanmadan çıkış yapılamaz.';
         } else if (!isStageDispatchReady(stage)) {
           sendBtn.disabled = true;
           sendBtn.title = 'Çıkış onayı ve ürün kontrollerini tamamlayın.';
@@ -1746,21 +1997,47 @@ function openModal(type) {
       </div>
     `;
   } else if (type === 'role') {
-    title.textContent = 'Rol Yönetimi';
+    title.textContent = 'Rol ve Sorumluluk Yönetimi';
     form.innerHTML = `
-      <p class="form-hint">Yalnızca yöneticiler kullanıcı rolleri üzerinde değişiklik yapabilir.</p>
+      <p class="form-hint">Yalnızca yöneticiler kullanıcı rolleri ve sorumluluk atamalarında değişiklik yapabilir.</p>
       <div class="form-grid role-grid">
         ${state.users
-          .map(
-            (user) => `
-              <div class="form-group">
-                <label>${user.name}</label>
+          .map((user) => {
+            const assignedFactories = Array.isArray(user.responsibleFactories)
+              ? user.responsibleFactories
+              : [];
+            const isSales = user.roleId === 'satis-operasyon';
+            const checkboxGroup = state.factories
+              .map((factory) => {
+                const checked = assignedFactories.some((name) => isSameLocationName(name, factory.name));
+                const disabledAttr = isSales ? 'disabled' : '';
+                const checkboxClass = isSales ? 'checkbox disabled' : 'checkbox';
+                return `
+                  <label class="${checkboxClass}">
+                    <input type="checkbox" name="factory-${user.id}" value="${factory.id}" ${checked ? 'checked' : ''} ${disabledAttr} />
+                    ${factory.name}
+                  </label>
+                `;
+              })
+              .join('');
+
+            const factoryControls = isSales
+              ? '<p class="form-hint">Satış Operasyon kullanıcıları depolara bağlı olmadan çalışır.</p>'
+              : `<div class="checkbox-group">${checkboxGroup}</div>`;
+
+            return `
+              <div class="form-group role-card">
+                <label>${user.name}<span class="muted">${user.email}</span></label>
                 <select name="role-${user.id}">
                   ${createRoleOptions(user.roleId)}
                 </select>
+                <div class="form-group">
+                  <span class="user-label">Sorumlu Fabrikalar</span>
+                  ${factoryControls}
+                </div>
               </div>
-            `
-          )
+            `;
+          })
           .join('')}
       </div>
       <div class="form-actions">
@@ -1956,6 +2233,10 @@ function handleModalSubmit(event) {
 }
 
 function addOrderFromForm(formData) {
+  if (!isAuthenticated() || !userHasPermission('addOrder')) {
+    window.alert('Sipariş oluşturma yetkiniz bulunmuyor.');
+    return false;
+  }
   const orderDate = formatNow();
   const invoiceNumberInput = (formData.get('invoiceNumber') || '').toString().trim();
   const invoiceNumber = invoiceNumberInput || generateInvoiceNumber();
@@ -2148,6 +2429,24 @@ function updateRolesFromForm(formData) {
     if (selectedRoleId && roleDefinitions[selectedRoleId]) {
       user.roleId = selectedRoleId;
     }
+
+    const selectedFactories = formData.getAll(`factory-${user.id}`);
+    const resolvedFactories = selectedFactories
+      .map((factoryId) => state.factories.find((factory) => factory.id === factoryId)?.name)
+      .filter(Boolean);
+
+    if (user.roleId === 'satis-operasyon') {
+      user.responsibleFactories = [];
+    } else {
+      user.responsibleFactories = resolvedFactories;
+    }
+
+    if (user.responsibleFactories.length > 0) {
+      const hasCurrent = user.responsibleFactories.some((name) => isSameLocationName(name, user.lastWarehouse));
+      user.lastWarehouse = hasCurrent ? user.lastWarehouse : user.responsibleFactories[0];
+    } else if (user.roleId !== 'satis-operasyon') {
+      user.lastWarehouse = null;
+    }
   });
 
   updateUserArea();
@@ -2157,6 +2456,11 @@ function updateRolesFromForm(formData) {
 function deleteActiveOrder() {
   if (!state.activeOrderId) {
     window.alert('Silinecek sipariş bulunamadı.');
+    return;
+  }
+
+  if (!isAuthenticated() || !isManagerUser()) {
+    window.alert('Sipariş silme işlemi yalnızca yönetici yetkisiyle yapılabilir.');
     return;
   }
 
@@ -2171,6 +2475,29 @@ function deleteActiveOrder() {
     state.activeOrderId = state.orders[0]?.id ?? null;
     renderAll();
   }
+}
+
+function canAdvanceStageAction(order, stage) {
+  if (!stage) {
+    return false;
+  }
+  const nextProgress = Math.min(stage.progress + 1, stageStatuses.length - 1);
+  if (nextProgress === stage.progress) {
+    return false;
+  }
+  if (nextProgress <= 2) {
+    return canOperateOutgoingStage(order, stage);
+  }
+  if (nextProgress === 3) {
+    const incomingAllowed = canManageIncomingStage(stage);
+    if (incomingAllowed) {
+      return true;
+    }
+    const outgoingAllowed = canManageOutgoingStage(stage);
+    const canCompleteFromSource = outgoingAllowed && !incomingAllowed && !isKnownFactoryLocation(stage.to);
+    return canCompleteFromSource;
+  }
+  return false;
 }
 
 function advanceStage(orderId, stageId) {
@@ -2191,9 +2518,15 @@ function advanceStage(orderId, stageId) {
   const outgoingAllowed = canManageOutgoingStage(stage);
   const incomingAllowed = canManageIncomingStage(stage);
   const canCompleteFromSource = outgoingAllowed && !incomingAllowed && !isKnownFactoryLocation(stage.to);
+  const inboundReady = inboundStagesCompleted(order, stage);
 
   if (nextProgress <= 2 && !outgoingAllowed) {
     window.alert('Bu aşama yalnızca ilgili üretim fabrikası tarafından ilerletilebilir.');
+    return;
+  }
+
+  if (nextProgress <= 2 && !inboundReady) {
+    window.alert('Sipariş giriş onayı tamamlanmadan aşama ilerletilemez.');
     return;
   }
 
@@ -2231,6 +2564,11 @@ function dispatchStage(orderId, stageId) {
 
   if (!canManageOutgoingStage(stage)) {
     window.alert('Bu sevkiyat çıkışı farklı bir fabrikanın kontrolündedir.');
+    return false;
+  }
+
+  if (!inboundStagesCompleted(order, stage)) {
+    window.alert('Sipariş giriş onayı tamamlanmadan sevkiyat çıkışı yapılamaz.');
     return false;
   }
 
@@ -2334,6 +2672,10 @@ function completeStage(orderId, stageId) {
 }
 
 function dispatchAllFromWarehouse() {
+  if (!isAuthenticated()) {
+    window.alert('Sevkiyat çıkışı yapabilmek için önce giriş yapmalısınız.');
+    return;
+  }
   const activeWarehouse = state.activeWarehouse;
   const stagesToDispatch = [];
 
@@ -2351,7 +2693,7 @@ function dispatchAllFromWarehouse() {
     if (!stage) {
       return false;
     }
-    if (!canManageOutgoingStage(stage) || stage.progress !== 1) {
+    if (!canOperateOutgoingStage(order, stage) || stage.progress !== 1) {
       return false;
     }
     return isStageDispatchReady(stage);

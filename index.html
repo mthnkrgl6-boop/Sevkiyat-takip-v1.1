@@ -21,7 +21,7 @@
       <div class="user-area">
         <div class="user-field">
           <span class="user-label">Aktif Kullanıcı</span>
-          <select id="user-select" class="user-select"></select>
+          <span id="user-name" class="user-name">Giriş yapınız</span>
         </div>
         <div class="user-field">
           <span class="user-label">Rol</span>
@@ -29,9 +29,10 @@
         </div>
         <div class="user-field">
           <span class="user-label">Kullanıcı Ambarı</span>
-          <select id="warehouse-select" class="warehouse-select"></select>
+          <select id="warehouse-select" class="warehouse-select" disabled></select>
         </div>
         <button id="manage-roles-btn" class="btn ghost small">Rol Yönetimi</button>
+        <button id="logout-btn" class="btn ghost small hidden">Çıkış Yap</button>
       </div>
     </header>
 
@@ -168,6 +169,23 @@
       </div>
       <form id="modal-form"></form>
     </div>
+  </div>
+
+  <div class="login-overlay" id="login-overlay">
+    <form id="login-form" class="login-card">
+      <h2>Sevkiyat Paneline Giriş</h2>
+      <p class="form-hint">Lütfen kayıtlı kullanıcı bilgilerinizle giriş yapın.</p>
+      <div class="form-group">
+        <label for="login-email">E-posta</label>
+        <input type="email" id="login-email" name="email" placeholder="ornek@firma.com" required />
+      </div>
+      <div class="form-group">
+        <label for="login-password">Parola</label>
+        <input type="password" id="login-password" name="password" placeholder="••••••••" required />
+      </div>
+      <p id="login-error" class="form-error" aria-live="polite"></p>
+      <button type="submit" class="btn primary full">Giriş Yap</button>
+    </form>
   </div>
 
   <template id="order-detail-template">

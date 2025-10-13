@@ -103,6 +103,23 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
 }
 
+.warehouse-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 160px;
+  padding: 8px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+
 .role-badge {
   background: rgba(255, 255, 255, 0.16);
   padding: 6px 14px;
@@ -125,6 +142,18 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+.form-error {
+  min-height: 20px;
+  color: #ffb3b3;
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+
+.btn.full {
+  width: 100%;
+  justify-content: center;
 }
 
 .tab-view {
@@ -693,6 +722,21 @@ body {
   accent-color: var(--accent);
 }
 
+.checkbox input:disabled {
+  accent-color: var(--border);
+  cursor: not-allowed;
+}
+
+.checkbox.disabled {
+  color: rgba(31, 74, 116, 0.55);
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -845,6 +889,25 @@ body {
   gap: 6px;
 }
 
+.role-card {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(31, 74, 116, 0.04);
+  border: 1px solid rgba(31, 74, 116, 0.08);
+  gap: 12px;
+}
+
+.role-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.role-card label .muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .form-group.readonly {
   gap: 8px;
 }
@@ -880,6 +943,69 @@ input[type="number"] {
   border: 1px solid var(--border);
   font-size: 14px;
   font-family: inherit;
+}
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(15, 28, 46, 0.92), rgba(19, 37, 63, 0.88));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  z-index: 100;
+}
+
+.login-overlay.hidden {
+  display: none;
+}
+
+.login-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f8fc 100%);
+  border-radius: 24px;
+  padding: 32px;
+  width: min(420px, 100%);
+  box-shadow: 0 32px 60px rgba(15, 28, 46, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.login-card h2 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--navy-700);
+}
+
+.login-card .form-group {
+  text-align: left;
+}
+
+.login-card label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy-700);
+}
+
+.login-card input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-card input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 122, 41, 0.22);
+  outline: none;
+}
+
+.login-card .btn.primary {
+  padding: 14px;
+  font-size: 16px;
 }
 
 textarea {
