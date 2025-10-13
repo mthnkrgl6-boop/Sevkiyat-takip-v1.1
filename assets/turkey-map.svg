@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Türkiye Haritası</title>
+  <desc id="desc">Türkiye anakarasını stilize edilmiş fakat gerçekçi bir kontur ile gösteren harita görselleştirmesi.</desc>
+  <defs>
+    <linearGradient id="bgGradient" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#edf4ff" />
+      <stop offset="100%" stop-color="#d6e4f6" />
+    </linearGradient>
+    <linearGradient id="landGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4c7fb5" />
+      <stop offset="100%" stop-color="#2b5f8d" />
+    </linearGradient>
+    <linearGradient id="reliefGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.35)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </linearGradient>
+    <filter id="dropShadow" x="-15%" y="-20%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity="0.2" flood-color="#1f3d57" />
+    </filter>
+  </defs>
+  <rect width="1200" height="600" fill="url(#bgGradient)" />
+  <g filter="url(#dropShadow)">
+    <path
+      fill="url(#landGradient)"
+      stroke="#ffffff"
+      stroke-width="3"
+      stroke-linejoin="round"
+      d="M85 315L110 300L140 305L165 285L205 280L235 260L220 235L245 210L275 195L305 165L350 155L385 140L430 135L470 120L520 110L565 115L605 110L645 120L690 125L735 120L780 130L820 125L860 135L905 130L950 140L990 155L1030 170L1070 185L1110 200L1150 225L1185 250L1195 280L1185 315L1160 340L1170 365L1155 395L1120 410L1080 420L1035 430L990 420L950 430L905 435L860 430L815 420L775 400L735 410L690 400L650 380L605 365L560 355L515 340L470 330L420 330L375 320L330 315L285 320L240 325L195 330L150 325L115 330Z"
+    />
+    <path
+      fill="url(#reliefGradient)"
+      d="M140 315C250 305 360 250 470 245C600 240 720 305 850 300C955 295 1065 255 1145 255C1170 255 1185 268 1185 280C1185 292 1170 308 1135 322C1035 360 915 410 780 398C670 388 560 340 440 340C320 340 220 360 140 340C115 334 110 321 140 315Z"
+      opacity="0.55"
+    />
+    <path
+      d="M210 272C280 244 345 196 410 182C510 160 610 215 700 212C780 208 870 170 930 170"
+      stroke="rgba(255,255,255,0.45)"
+      stroke-width="2.6"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <path
+      d="M260 330C360 300 470 300 560 330C640 357 720 370 810 362C885 356 960 330 1025 302"
+      stroke="rgba(255,255,255,0.35)"
+      stroke-width="2.4"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <path
+      d="M520 120C525 140 540 160 565 170C620 190 700 170 750 160C820 145 900 160 960 190"
+      stroke="rgba(17,45,78,0.3)"
+      stroke-width="3"
+      fill="none"
+      stroke-linecap="round"
+    />
+  </g>
+  <g fill="#1f3d57" opacity="0.72">
+    <circle cx="430" cy="280" r="6" />
+    <circle cx="600" cy="255" r="6" />
+    <circle cx="760" cy="250" r="6" />
+    <circle cx="900" cy="240" r="6" />
+  </g>
+  <g font-family="'Inter', sans-serif" font-size="20" fill="#1f3d57" opacity="0.85">
+    <text x="448" y="275">İstanbul</text>
+    <text x="618" y="248">Ankara</text>
+    <text x="778" y="244">Sivas</text>
+    <text x="918" y="234">Diyarbakır</text>
+  </g>
+</svg>
