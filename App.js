@@ -483,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupWarehouseSelect();
   initializeHeaderControls();
   initializeAuth();
-  state.activeOrderId = state.orders[0]?.id ?? null;
   renderAll();
 });
 
@@ -1239,11 +1238,6 @@ function renderOrdersTable() {
     return;
   }
 
-  const hasSelection = state.orders.some((order) => order.id === state.activeOrderId);
-  if (!hasSelection) {
-    state.activeOrderId = state.orders[0]?.id ?? null;
-  }
-
   tbody.innerHTML = '';
 
   state.orders.forEach((order) => {
@@ -1294,6 +1288,11 @@ function buildOrderDetailFragment(order) {
   const wrapper = fragment.querySelector('.order-detail-panel');
   if (wrapper) {
     wrapper.dataset.orderId = order.id;
+  }
+
+  const closeButton = fragment.querySelector('[data-action="close-detail"]');
+  if (closeButton) {
+    closeButton.dataset.orderId = order.id;
   }
 
   fragment.querySelector('[data-field="orderDate"]').textContent = order.orderDate;
@@ -1854,15 +1853,21 @@ function handleOrderTableClick(event) {
     return;
   }
 
+  if (targetRow.dataset.rowType === 'detail') {
+    return;
+  }
+
   const orderId = targetRow.dataset.orderId;
   if (!orderId) {
     return;
   }
 
-  if (state.activeOrderId !== orderId) {
+  if (state.activeOrderId === orderId) {
+    state.activeOrderId = null;
+  } else {
     state.activeOrderId = orderId;
-    renderOrdersTable();
   }
+  renderOrdersTable();
 }
 
 function handleOrderDetailAction(event, actionSource) {
@@ -1879,6 +1884,18 @@ function handleOrderDetailAction(event, actionSource) {
   const detailContainer = trigger.closest('.order-detail-panel');
   const orderId = trigger.dataset.orderId ?? detailContainer?.dataset.orderId ?? state.activeOrderId;
   const stageId = trigger.dataset.stageId;
+
+  if (action === 'close-detail') {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (state.activeOrderId === orderId) {
+      state.activeOrderId = null;
+      renderOrdersTable();
+    }
+    return;
+  }
 
   if (action === 'add-estimate') {
     const estimate = window.prompt('Tahmini teslimat zamanını girin (GG.AA.YYYY SS:DD):');
@@ -2574,7 +2591,7 @@ function addOrderFromForm(formData) {
   prepareStageData(newOrder);
   updateOrderFlow(newOrder);
   state.orders.unshift(newOrder);
-  state.activeOrderId = newOrder.id;
+  state.activeOrderId = null;
   return true;
 }
 
@@ -2748,7 +2765,7 @@ function deleteActiveOrder() {
   const index = state.orders.findIndex((order) => order.id === state.activeOrderId);
   if (index > -1) {
     state.orders.splice(index, 1);
-    state.activeOrderId = state.orders[0]?.id ?? null;
+    state.activeOrderId = null;
     renderAll();
   }
 }
@@ -3176,7 +3193,7 @@ function createShortageOrder(order, stage, shortageItems) {
   prepareStageData(revisionOrder);
   updateOrderFlow(revisionOrder);
   state.orders.unshift(revisionOrder);
-  state.activeOrderId = revisionOrder.id;
+  state.activeOrderId = null;
   return revisionOrder;
 }
 
@@ -3290,7 +3307,7 @@ function archiveOrder(order, deliveredAt) {
   }
 
   if (state.activeOrderId === order.id) {
-    state.activeOrderId = state.orders[0]?.id ?? null;
+    state.activeOrderId = null;
   }
 }
 
