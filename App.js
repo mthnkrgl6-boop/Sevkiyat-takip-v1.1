@@ -137,6 +137,12 @@ const factories = [
   }
 ];
 
+const warehouseDisplayNames = {
+  'İstanbul Şirin Fabrika': 'Şirin',
+  'Aksaray Merkez Fabrika': 'Aksaray',
+  'Aksaray Altyapı Fabrika': 'Aksaray Altyapı'
+};
+
 const users = [
   {
     id: 'user-1',
@@ -365,6 +371,26 @@ const state = {
   warehouseReceipts: {},
   modalType: null
 };
+
+function getWarehouseDisplayName(factoryName) {
+  if (!factoryName) {
+    return '';
+  }
+  if (warehouseDisplayNames[factoryName]) {
+    return warehouseDisplayNames[factoryName];
+  }
+  const factory = state.factories.find((item) => item.name === factoryName);
+  if (factory?.city) {
+    return factory.city;
+  }
+  return factoryName;
+}
+
+function buildWarehouseOptionsMarkup() {
+  return state.factories
+    .map((factory) => `<option value="${factory.name}">${getWarehouseDisplayName(factory.name)}</option>`)
+    .join('');
+}
 
 const modalState = {
   type: null
@@ -597,6 +623,10 @@ function getActiveRoleId() {
 
 function isManagerUser() {
   return getActiveRoleId() === 'yonetici';
+}
+
+function isSalesOperationUser() {
+  return getActiveRoleId() === 'satis-operasyon';
 }
 
 function canManageOutgoingStage(stage) {
@@ -872,11 +902,12 @@ function setupWarehouseSelect() {
   if (!select) {
     return;
   }
-  select.innerHTML = state.factories
-    .map((factory) => `<option value="${factory.name}">${factory.name}</option>`)
-    .join('');
-  select.value = state.activeWarehouse;
+  select.innerHTML = buildWarehouseOptionsMarkup();
   select.addEventListener('change', (event) => {
+    if (!isAuthenticated() || !isManagerUser()) {
+      event.target.value = state.activeWarehouse;
+      return;
+    }
     state.activeWarehouse = event.target.value;
     const user = getActiveUser();
     if (user) {
@@ -885,6 +916,7 @@ function setupWarehouseSelect() {
     updatePermissionSensitiveUI();
     renderHatManagement();
   });
+  updateWarehouseSelect();
 }
 
 function updateUserArea() {
@@ -969,10 +1001,21 @@ function userHasPermission(permission) {
 
 function updateWarehouseSelect() {
   const select = document.getElementById('warehouse-select');
-  if (select) {
-    select.value = state.activeWarehouse;
-    select.disabled = !isAuthenticated();
+  const field = document.getElementById('warehouse-field');
+  if (field) {
+    const hideField = isAuthenticated() && isSalesOperationUser();
+    field.classList.toggle('hidden', hideField);
   }
+  if (!select) {
+    return;
+  }
+  select.innerHTML = buildWarehouseOptionsMarkup();
+  if (!state.activeWarehouse && select.options.length > 0) {
+    state.activeWarehouse = select.options[0].value;
+  }
+  select.value = state.activeWarehouse;
+  const canManageWarehouses = isAuthenticated() && isManagerUser();
+  select.disabled = !canManageWarehouses;
 }
 
 function updateRoleDisplay() {
