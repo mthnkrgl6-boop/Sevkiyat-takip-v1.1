@@ -9,7 +9,7 @@ const roleDefinitions = {
   },
   yonetici: {
     name: 'Yönetici',
-    permissions: { addOrder: false, manageRoles: true }
+    permissions: { addOrder: true, manageRoles: true }
   }
 };
 
@@ -933,7 +933,7 @@ function bindGlobalActions() {
 
   document.getElementById('add-order-btn').addEventListener('click', () => {
     if (!userHasPermission('addOrder')) {
-      window.alert('Yeni sipariş ekleme işlemi yalnızca Satış Operasyon rolü tarafından yapılabilir.');
+      window.alert('Yeni sipariş ekleme işlemi yalnızca Satış Operasyon veya Yönetici rolleri tarafından yapılabilir.');
       return;
     }
     openModal('order');
@@ -1095,7 +1095,7 @@ function updatePermissionSensitiveUI() {
     addOrderBtn.disabled = !canAddOrder;
     addOrderBtn.title = canAddOrder
       ? 'Yeni sipariş ekleyin'
-      : 'Sipariş ekleme işlemi Satış Operasyon rolü tarafından yapılabilir.';
+      : 'Sipariş ekleme işlemi Satış Operasyon veya Yönetici rolleri tarafından yapılabilir.';
   }
 
   const dispatchAllBtn = document.getElementById('dispatch-all-btn');
