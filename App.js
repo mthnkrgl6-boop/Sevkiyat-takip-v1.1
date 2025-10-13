@@ -14,6 +14,8 @@ const roleDefinitions = {
 };
 
 const stageStatuses = ['Bekliyor', 'Hazırlanıyor', 'Yolda', 'Tamamlandı'];
+const TERMIN_PLACEHOLDER = 'Termin Bekleniyor';
+const TERMIN_WARNING_THRESHOLD_HOURS = 48;
 
 const provinceOptions = [
   'Adana',
@@ -556,6 +558,8 @@ function prepareStageData(order) {
       timestamp: null,
       note: ''
     };
+    stage.plannedStart = formatTerminValue(stage.plannedStart);
+    stage.plannedArrival = formatTerminValue(stage.plannedArrival);
   });
 }
 
@@ -615,6 +619,116 @@ function deriveProductsForStage(order, stage, stageIndex) {
   }
 
   return products;
+}
+
+function hasTerminValue(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return trimmed.toLocaleLowerCase('tr-TR') !== TERMIN_PLACEHOLDER.toLocaleLowerCase('tr-TR');
+}
+
+function formatTerminValue(value) {
+  if (!hasTerminValue(value)) {
+    return TERMIN_PLACEHOLDER;
+  }
+  return value.trim();
+}
+
+function parseTerminString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const directDate = new Date(trimmed);
+  if (!Number.isNaN(directDate.getTime())) {
+    return directDate;
+  }
+  const match = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2})(?::(\d{1,2}))?)?$/);
+  if (!match) {
+    return null;
+  }
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const hour = Number(match[4] ?? 0);
+  const minute = Number(match[5] ?? 0);
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function normalizeTerminInput(raw) {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) {
+    return { formatted: null, date: null, valid: true };
+  }
+  const parsed = parseTerminString(trimmed);
+  if (!parsed) {
+    return { formatted: null, date: null, valid: false };
+  }
+  return { formatted: formatDisplayDate(parsed), date: parsed, valid: true };
+}
+
+function getStageTerminStatus(stage, mode = 'arrival') {
+  if (!stage) {
+    return 'missing';
+  }
+  const targetValue = mode === 'departure' ? stage.plannedStart : stage.plannedArrival;
+  const completionThreshold = mode === 'departure' ? 2 : 3;
+  if (stage.progress >= completionThreshold) {
+    return 'completed';
+  }
+  if (!hasTerminValue(targetValue)) {
+    return 'missing';
+  }
+  const parsedDate = parseTerminString(targetValue);
+  if (!parsedDate) {
+    return 'missing';
+  }
+  const now = new Date();
+  const diff = parsedDate.getTime() - now.getTime();
+  if (diff < 0) {
+    return 'overdue';
+  }
+  if (diff <= TERMIN_WARNING_THRESHOLD_HOURS * 60 * 60 * 1000) {
+    return 'due-soon';
+  }
+  return 'scheduled';
+}
+
+function applyTerminAlertClass(element, status) {
+  if (!element) {
+    return;
+  }
+  element.classList.remove('overdue', 'due-soon', 'missing', 'completed');
+  if (status && status !== 'scheduled') {
+    element.classList.add(status);
+  }
+}
+
+function getTerminStatusLabel(status) {
+  switch (status) {
+    case 'overdue':
+      return 'Gecikmiş';
+    case 'due-soon':
+      return 'Yaklaşan';
+    case 'missing':
+      return 'Termin Bekleniyor';
+    case 'completed':
+      return 'Tamamlandı';
+    default:
+      return 'Planlandı';
+  }
 }
 
 function normalizeLocationName(name) {
@@ -1305,7 +1419,6 @@ function renderAll() {
   renderOrdersTable();
   renderArchive();
   renderProductManagement();
-  renderFactorySummary();
   renderHatManagement();
   updateUserArea();
   schedulePersist();
@@ -1478,7 +1591,7 @@ function buildOrderDetailFragment(order) {
       header.textContent = `${stage.from} → ${stage.to}`;
       const schedule = document.createElement('span');
       schedule.className = 'muted';
-      schedule.textContent = `Planlanan Çıkış: ${stage.plannedStart} • Planlanan Varış: ${stage.plannedArrival}`;
+      schedule.textContent = `Planlanan Çıkış: ${formatTerminValue(stage.plannedStart)} • Planlanan Varış: ${formatTerminValue(stage.plannedArrival)}`;
       const logistics = document.createElement('span');
       logistics.className = 'muted';
       logistics.textContent = `Taşıma: ${stage.transport} • Sorumlu: ${stage.responsible}`;
@@ -1490,6 +1603,18 @@ function buildOrderDetailFragment(order) {
       if (!stage.completed) {
         const actions = document.createElement('div');
         actions.className = 'stage-actions';
+        if (canManageOutgoingStage(stage)) {
+          const terminBtn = document.createElement('button');
+          terminBtn.className = 'btn ghost small';
+          terminBtn.dataset.action = 'edit-stage-termin';
+          terminBtn.dataset.stageId = stage.id;
+          terminBtn.dataset.orderId = order.id;
+          terminBtn.textContent =
+            hasTerminValue(stage.plannedStart) || hasTerminValue(stage.plannedArrival)
+              ? 'Termin Düzenle'
+              : 'Termin Belirle';
+          actions.appendChild(terminBtn);
+        }
         const btn = document.createElement('button');
         btn.className = 'btn secondary small';
         btn.dataset.action = 'advance-stage';
@@ -1625,35 +1750,10 @@ function renderProductManagement() {
   });
 }
 
-function renderFactorySummary() {
-  const list = document.getElementById('factory-summary');
-  if (!list) {
-    schedulePersist();
-    return;
-  }
-  list.innerHTML = '';
-
-  state.factories.forEach((factory) => {
-    const li = document.createElement('li');
-    const assignedProducts = state.productCatalog.filter((product) => product.factoryId === factory.id);
-    const productLabel = assignedProducts.length
-      ? assignedProducts.slice(0, 3).map((item) => item.name).join(', ') + (assignedProducts.length > 3 ? '…' : '')
-      : 'Henüz ürün atanmadı.';
-    li.innerHTML = `
-      <strong>${factory.name}</strong>
-      <span class="muted">${factory.city} • ${factory.manager}</span>
-      <span>Ürün Grupları: ${factory.productGroups.join(', ')}</span>
-      <span class="muted">Panelde kayıtlı ${assignedProducts.length} ürün • ${productLabel}</span>
-    `;
-    list.appendChild(li);
-  });
-
-  schedulePersist();
-}
-
 function renderHatManagement() {
   const incomingContainer = document.getElementById('incoming-list');
   const outgoingContainer = document.getElementById('outgoing-list');
+  const calendarContainer = document.getElementById('warehouse-calendar');
   if (!incomingContainer || !outgoingContainer) {
     schedulePersist();
     return;
@@ -1685,25 +1785,53 @@ function renderHatManagement() {
       if (stage.shortageFlagged) {
         card.classList.add('shortage');
       }
-      card.innerHTML = `
-        <div class="hat-card-header">
-          <strong>${order.id}</strong>
-          <span class="badge">${stage.status}</span>
-        </div>
-        <span>Cari: ${order.accountName || '-'}</span>
-        <span>Nereden: ${stage.from}</span>
-        <span>Planlanan Varış: ${stage.plannedArrival}</span>
-        <span>Ürün Notu: ${stage.note}</span>
-      `;
+      const arrivalStatus = getStageTerminStatus(stage, 'arrival');
+      applyTerminAlertClass(card, arrivalStatus);
+
+      const plannedDepartureText = formatTerminValue(stage.plannedStart);
+      const plannedArrivalText = formatTerminValue(stage.plannedArrival);
+
+      const header = document.createElement('div');
+      header.className = 'hat-card-header';
+      const title = document.createElement('strong');
+      title.textContent = order.id;
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'badge';
+      statusBadge.textContent = stage.status;
+      header.append(title, statusBadge);
       if (stage.shortageFlagged) {
-        const header = card.querySelector('.hat-card-header');
-        if (header) {
-          const shortageBadge = document.createElement('span');
-          shortageBadge.className = 'badge warning';
-          shortageBadge.textContent = 'Eksik Ürün';
-          header.appendChild(shortageBadge);
-        }
+        const shortageBadge = document.createElement('span');
+        shortageBadge.className = 'badge warning';
+        shortageBadge.textContent = 'Eksik Ürün';
+        header.appendChild(shortageBadge);
       }
+      card.appendChild(header);
+
+      const accountLine = document.createElement('span');
+      accountLine.textContent = `Cari: ${order.accountName || '-'}`;
+      card.appendChild(accountLine);
+
+      const originLine = document.createElement('span');
+      originLine.textContent = `Nereden: ${stage.from}`;
+      card.appendChild(originLine);
+
+      const plannedDepartureLine = document.createElement('span');
+      plannedDepartureLine.textContent = `Planlanan Çıkış: ${plannedDepartureText}`;
+      card.appendChild(plannedDepartureLine);
+
+      const plannedArrivalLine = document.createElement('span');
+      plannedArrivalLine.textContent = `Planlanan Varış: ${plannedArrivalText}`;
+      card.appendChild(plannedArrivalLine);
+
+      const statusLine = document.createElement('span');
+      statusLine.className = 'muted';
+      statusLine.textContent = `Termin Durumu: ${getTerminStatusLabel(arrivalStatus)}`;
+      card.appendChild(statusLine);
+
+      const noteLine = document.createElement('span');
+      noteLine.textContent = `Ürün Notu: ${stage.note || '-'}`;
+      card.appendChild(noteLine);
+
       const actions = document.createElement('div');
       actions.className = 'hat-card-actions';
 
@@ -1790,6 +1918,11 @@ function renderHatManagement() {
         hasLineItems &&
         stage.lineItems.some((item) => item?.isLocal !== false && Number(item.missingQty) > 0);
 
+      const plannedStartValue = formatTerminValue(stage.plannedStart);
+      const plannedArrivalValue = formatTerminValue(stage.plannedArrival);
+      const departureStatus = getStageTerminStatus(stage, 'departure');
+      applyTerminAlertClass(card, departureStatus);
+
       if (stage.shortageFlagged || hasMissing) {
         card.classList.add('shortage');
       }
@@ -1819,8 +1952,17 @@ function renderHatManagement() {
       card.appendChild(destination);
 
       const plannedStart = document.createElement('span');
-      plannedStart.textContent = `Planlanan Çıkış: ${stage.plannedStart}`;
+      plannedStart.textContent = `Planlanan Çıkış: ${plannedStartValue}`;
       card.appendChild(plannedStart);
+
+      const plannedArrival = document.createElement('span');
+      plannedArrival.textContent = `Planlanan Varış: ${plannedArrivalValue}`;
+      card.appendChild(plannedArrival);
+
+      const terminInfo = document.createElement('span');
+      terminInfo.className = 'muted';
+      terminInfo.textContent = `Termin Durumu: ${getTerminStatusLabel(departureStatus)}`;
+      card.appendChild(terminInfo);
 
       const responsible = document.createElement('span');
       responsible.textContent = `Sorumlu: ${stage.responsible}`;
@@ -1969,6 +2111,19 @@ function renderHatManagement() {
 
       const actions = document.createElement('div');
       actions.className = 'hat-card-actions';
+      if (canManageOutgoingStage(stage)) {
+        const terminBtn = document.createElement('button');
+        terminBtn.type = 'button';
+        terminBtn.className = 'btn ghost small';
+        terminBtn.dataset.action = 'edit-termin';
+        terminBtn.dataset.stageId = stage.id;
+        terminBtn.dataset.orderId = order.id;
+        terminBtn.textContent =
+          hasTerminValue(stage.plannedStart) || hasTerminValue(stage.plannedArrival)
+            ? 'Termin Düzenle'
+            : 'Termin Belirle';
+        actions.appendChild(terminBtn);
+      }
       if (stage.progress < 2) {
         const sendBtn = document.createElement('button');
         sendBtn.className = 'btn primary small';
@@ -1999,7 +2154,114 @@ function renderHatManagement() {
     });
   }
 
+  if (calendarContainer) {
+    renderWarehouseCalendar(calendarContainer, activeWarehouse);
+  }
+
   schedulePersist();
+}
+
+function buildWarehouseCalendarEntries(warehouseName) {
+  const entries = [];
+  if (!warehouseName) {
+    return entries;
+  }
+
+  const statusPriority = { overdue: 0, 'due-soon': 1, missing: 2, scheduled: 3, completed: 4 };
+
+  state.orders.forEach((order) => {
+    order.stages.forEach((stage) => {
+      const isOrigin = isSameLocationName(stage.from, warehouseName);
+      const isDestination = isSameLocationName(stage.to, warehouseName);
+      if (!isOrigin && !isDestination) {
+        return;
+      }
+
+      const direction = isOrigin ? 'departure' : 'arrival';
+      const focusValue = direction === 'departure' ? stage.plannedStart : stage.plannedArrival;
+      const focusHasValue = hasTerminValue(focusValue);
+      const focusDate = focusHasValue ? parseTerminString(focusValue) : null;
+      const status = getStageTerminStatus(stage, direction);
+      const sortKey = focusDate ? focusDate.getTime() : Number.POSITIVE_INFINITY;
+
+      entries.push({
+        orderId: order.id,
+        stageId: stage.id,
+        direction,
+        counterpart: direction === 'departure' ? stage.to || '-' : stage.from || '-',
+        plannedStart: formatTerminValue(stage.plannedStart),
+        plannedArrival: formatTerminValue(stage.plannedArrival),
+        accountName: order.accountName || '-',
+        status,
+        focusLabel: direction === 'departure' ? 'Çıkış' : 'Varış',
+        focusValue: formatTerminValue(focusValue),
+        sortKey,
+        priority: statusPriority[status] ?? 5,
+        stageStatus: stage.status || '-'
+      });
+    });
+  });
+
+  entries.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    if (a.sortKey !== b.sortKey) {
+      return a.sortKey - b.sortKey;
+    }
+    return a.orderId.localeCompare(b.orderId);
+  });
+
+  return entries;
+}
+
+function renderWarehouseCalendar(container, warehouseName) {
+  if (!container) {
+    return;
+  }
+  container.innerHTML = '';
+
+  const entries = buildWarehouseCalendarEntries(warehouseName);
+  if (entries.length === 0) {
+    container.innerHTML = '<p class="muted">Bu ambara ait planlanmış termin bulunmuyor.</p>';
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const item = document.createElement('div');
+    item.className = 'calendar-item';
+    applyTerminAlertClass(item, entry.status);
+
+    const header = document.createElement('div');
+    header.className = 'calendar-item-header';
+    const title = document.createElement('strong');
+    title.textContent = entry.orderId;
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'calendar-status';
+    statusBadge.textContent = getTerminStatusLabel(entry.status);
+    header.append(title, statusBadge);
+
+    const body = document.createElement('div');
+    body.className = 'calendar-item-body';
+    const accountLine = document.createElement('span');
+    accountLine.textContent = `Cari: ${entry.accountName}`;
+    const stageLine = document.createElement('span');
+    const directionLabel = entry.direction === 'departure' ? 'Çıkış' : 'Geliş';
+    stageLine.textContent = `Yön: ${directionLabel} • ${entry.stageStatus}`;
+    const focusLine = document.createElement('span');
+    focusLine.textContent = `Takip Edilen Termin (${entry.focusLabel}): ${entry.focusValue}`;
+    const counterpartLine = document.createElement('span');
+    const counterpartLabel = entry.direction === 'departure' ? 'Hedef' : 'Kaynak';
+    counterpartLine.textContent = `${counterpartLabel}: ${entry.counterpart}`;
+    const startLine = document.createElement('span');
+    startLine.textContent = `Planlanan Çıkış: ${entry.plannedStart}`;
+    const arrivalLine = document.createElement('span');
+    arrivalLine.textContent = `Planlanan Varış: ${entry.plannedArrival}`;
+    body.append(accountLine, stageLine, focusLine, counterpartLine, startLine, arrivalLine);
+
+    item.append(header, body);
+    container.appendChild(item);
+  });
 }
 
 function handleOrderTableClick(event) {
@@ -2140,6 +2402,15 @@ function handleOrderDetailAction(event, actionSource) {
     return;
   }
 
+  if (action === 'edit-stage-termin' && orderId && stageId) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    editStageTermin(orderId, stageId);
+    return;
+  }
+
   if (action === 'advance-stage' && orderId && stageId) {
     advanceStage(orderId, stageId);
   }
@@ -2191,6 +2462,13 @@ function handleOutgoingAction(event) {
   if (action === 'toggle-approval' && event.type === 'change') {
     const { orderId, stageId } = target.dataset;
     toggleStageApproval(orderId, stageId, target.checked);
+    return;
+  }
+
+  if (action === 'edit-termin' && event.type === 'click') {
+    event.preventDefault();
+    const { orderId, stageId } = target.dataset;
+    editStageTermin(orderId, stageId);
     return;
   }
 
@@ -2265,7 +2543,6 @@ function updateProductField(code, field, value) {
     }
   }
 
-  renderFactorySummary();
   schedulePersist();
 }
 
@@ -2301,7 +2578,6 @@ function saveProductEdits(code, row) {
     product.factoryId = factorySelect.value;
   }
 
-  renderFactorySummary();
   schedulePersist();
 
   if (groupInput) {
@@ -2336,7 +2612,6 @@ function deleteProduct(code) {
 
   state.productCatalog = state.productCatalog.filter((item) => item.code !== code);
   renderProductManagement();
-  renderFactorySummary();
   schedulePersist();
 }
 
@@ -2791,11 +3066,7 @@ function addOrderFromForm(formData) {
     return false;
   }
 
-  const timeline = calculateEstimatedTimeline(orderDate, routeType, isMergeRoute);
-  const computedEstimatedDelivery = estimatedDeliveryInput
-    ? formatDateFromInput(estimatedDeliveryInput)
-    : timeline.final;
-
+  const estimatedDeliveryValue = estimatedDeliveryInput ? formatDateFromInput(estimatedDeliveryInput) : '';
   const finalDestination = finalDestinationInput || finalProvince;
 
   const newOrderId = generateOrderId(invoiceNumber);
@@ -2813,7 +3084,7 @@ function addOrderFromForm(formData) {
     accountName,
     currentLocation: startLabel,
     nextLocation: isMergeRoute ? consolidationLabel : finalLabel,
-    estimatedDelivery: computedEstimatedDelivery || timeline.final || '- Tahmini bekleniyor -',
+    estimatedDelivery: estimatedDeliveryValue || TERMIN_PLACEHOLDER,
     lastUpdate: orderDate,
     finalDestination: finalLabel || '-',
     statusHistory: [],
@@ -2826,19 +3097,14 @@ function addOrderFromForm(formData) {
     timestamp: orderDate,
     note: `${startLabel}: Sipariş oluşturuldu.`
   });
-
-  const timelineSegments = [];
-  if (timeline.firstLeg?.arrival) {
-    const firstStopLabel = isMergeRoute ? consolidationLabel : finalLabel;
-    timelineSegments.push(`${startProvince || startLabel} → ${firstStopLabel} ${extractDate(timeline.firstLeg.arrival)}`);
-  }
-  if (timeline.secondLeg?.arrival) {
-    timelineSegments.push(`${consolidationProvinceInput || consolidationLabel} → ${finalProvince || finalLabel} ${extractDate(timeline.secondLeg.arrival)}`);
-  }
-  if (timelineSegments.length > 0) {
+  newOrder.statusHistory.push({
+    timestamp: orderDate,
+    note: `${startLabel}: Termin planı çıkış ambarı tarafından belirlenecek.`
+  });
+  if (isMergeRoute && consolidationLabel) {
     newOrder.statusHistory.push({
       timestamp: orderDate,
-      note: `Termin Planı: ${timelineSegments.join(' • ')}`
+      note: `${consolidationLabel}: Birleştirme sonrası sevkiyat için termin belirlenecek.`
     });
   }
 
@@ -2846,8 +3112,8 @@ function addOrderFromForm(formData) {
     id: `${newOrderId}-1`,
     from: startLabel || 'Belirtilmedi',
     to: isMergeRoute ? consolidationLabel : finalLabel,
-    plannedStart: extractDate(timeline.firstLeg?.start ?? orderDate),
-    plannedArrival: extractDate(timeline.firstLeg?.arrival ?? computedEstimatedDelivery ?? orderDate),
+    plannedStart: TERMIN_PLACEHOLDER,
+    plannedArrival: TERMIN_PLACEHOLDER,
     transport: 'Tır',
     note: note || 'Yeni sevkiyat planı oluşturuldu.',
     responsible: `${startLabel || 'Fabrika'} Lojistik`,
@@ -2862,8 +3128,8 @@ function addOrderFromForm(formData) {
       id: `${newOrderId}-2`,
       from: consolidationLabel || 'Birleştirme Noktası',
       to: finalLabel,
-      plannedStart: extractDate(timeline.secondLeg?.start ?? timeline.firstLeg?.arrival ?? orderDate),
-      plannedArrival: extractDate(timeline.secondLeg?.arrival ?? computedEstimatedDelivery ?? orderDate),
+      plannedStart: TERMIN_PLACEHOLDER,
+      plannedArrival: TERMIN_PLACEHOLDER,
       transport: 'Tır',
       note: 'Birleştirme sonrası sevkiyat.',
       responsible: `${consolidationLabel || 'Birleştirme'} Sevkiyat`,
@@ -3163,6 +3429,93 @@ function advanceStage(orderId, stageId) {
   renderAll();
 }
 
+function editStageTermin(orderId, stageId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    return;
+  }
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage) {
+    return;
+  }
+
+  if (!canManageOutgoingStage(stage)) {
+    window.alert('Termin güncellemesi yalnızca ilgili çıkış ambarı tarafından yapılabilir.');
+    return;
+  }
+
+  if (stage.progress >= stageStatuses.length - 1) {
+    window.alert('Tamamlanan aşamalar için termin düzenlenemez.');
+    return;
+  }
+
+  const startDefault = hasTerminValue(stage.plannedStart) ? stage.plannedStart : '';
+  const arrivalDefault = hasTerminValue(stage.plannedArrival) ? stage.plannedArrival : '';
+
+  const startInput = window.prompt(
+    'Planlanan çıkış tarihini girin (GG.AA.YYYY SS:DD) veya boş bırakın:',
+    startDefault
+  );
+  if (startInput === null) {
+    return;
+  }
+
+  const arrivalInput = window.prompt(
+    'Planlanan varış tarihini girin (GG.AA.YYYY SS:DD) veya boş bırakın:',
+    arrivalDefault
+  );
+  if (arrivalInput === null) {
+    return;
+  }
+
+  const startResult = normalizeTerminInput(startInput);
+  const arrivalResult = normalizeTerminInput(arrivalInput);
+
+  if (!startResult.valid || !arrivalResult.valid) {
+    window.alert('Geçerli bir tarih formatı giriniz. Örnek: 15.03.2024 10:30');
+    return;
+  }
+
+  if (startResult.date && arrivalResult.date && arrivalResult.date.getTime() < startResult.date.getTime()) {
+    window.alert('Varış tarihi çıkış tarihinden önce olamaz.');
+    return;
+  }
+
+  const previousStart = formatTerminValue(stage.plannedStart);
+  const previousArrival = formatTerminValue(stage.plannedArrival);
+
+  const resolvedStart = startResult.formatted ? startResult.formatted : TERMIN_PLACEHOLDER;
+  const resolvedArrival = arrivalResult.formatted ? arrivalResult.formatted : TERMIN_PLACEHOLDER;
+
+  stage.plannedStart = resolvedStart;
+  stage.plannedArrival = resolvedArrival;
+
+  const newStart = formatTerminValue(resolvedStart);
+  const newArrival = formatTerminValue(resolvedArrival);
+  const changes = [];
+  if (newStart !== previousStart) {
+    changes.push(`Çıkış ${previousStart} → ${newStart}`);
+  }
+  if (newArrival !== previousArrival) {
+    changes.push(`Varış ${previousArrival} → ${newArrival}`);
+  }
+
+  if (changes.length === 0) {
+    renderAll();
+    return;
+  }
+
+  stage.terminUpdatedAt = formatNow();
+  stage.terminUpdatedBy = getActiveUser()?.name ?? null;
+
+  if (changes.length > 0) {
+    addHistory(order, `${stage.from}: Termin ${changes.join(' • ')} olarak güncellendi.`);
+  }
+
+  order.lastUpdate = formatNow();
+  renderAll();
+}
+
 function dispatchStage(orderId, stageId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) {
@@ -3431,16 +3784,12 @@ function createShortageOrder(order, stage, shortageItems) {
   order.revisionOf = baseOrderId;
   const revisionId = generateRevisionId(order.id);
   const now = formatNow();
-  const hasConsolidation = order.stages.length > 1;
-  const timeline = calculateEstimatedTimeline(now, order.routeType, hasConsolidation);
-
   const stageIndex = order.stages.findIndex((item) => item.id === stage.id);
   const targetStage = stageIndex > -1 ? order.stages[stageIndex] : stage;
   const originLabel = targetStage?.from ?? order.currentLocation;
   const destinationLabel = targetStage?.to ?? order.nextLocation;
   const orderFinal = order.finalDestination || order.stages[order.stages.length - 1]?.to;
   const isFinalStage = stageIndex === order.stages.length - 1;
-  const legTimeline = stageIndex > 0 && hasConsolidation ? timeline.secondLeg ?? timeline.firstLeg : timeline.firstLeg;
 
   const revisionOrder = {
     id: revisionId,
@@ -3452,7 +3801,7 @@ function createShortageOrder(order, stage, shortageItems) {
     accountName: order.accountName,
     currentLocation: originLabel,
     nextLocation: destinationLabel,
-    estimatedDelivery: legTimeline?.arrival ?? timeline.final ?? order.estimatedDelivery,
+    estimatedDelivery: TERMIN_PLACEHOLDER,
     lastUpdate: now,
     finalDestination: isFinalStage ? orderFinal : destinationLabel,
     statusHistory: [],
@@ -3469,19 +3818,10 @@ function createShortageOrder(order, stage, shortageItems) {
     timestamp: now,
     note: `${originLabel}: Revizyon siparişi oluşturuldu.`
   });
-
-  const timelineSegments = [];
-  if (legTimeline?.arrival) {
-    timelineSegments.push(
-      `${originLabel} → ${destinationLabel} ${extractDate(legTimeline.arrival)}`
-    );
-  }
-  if (timelineSegments.length > 0) {
-    revisionOrder.statusHistory.push({
-      timestamp: now,
-      note: `Termin Planı: ${timelineSegments.join(' • ')}`
-    });
-  }
+  revisionOrder.statusHistory.push({
+    timestamp: now,
+    note: `${originLabel}: Termin planı çıkış ambarı tarafından belirlenecek.`
+  });
 
   revisionOrder.statusHistory.push({
     timestamp: now,
@@ -3495,8 +3835,8 @@ function createShortageOrder(order, stage, shortageItems) {
       id: `${revisionId}-1`,
       from: originLabel,
       to: destinationLabel,
-      plannedStart: extractDate(legTimeline?.start ?? now),
-      plannedArrival: extractDate(legTimeline?.arrival ?? timeline.final ?? now),
+      plannedStart: TERMIN_PLACEHOLDER,
+      plannedArrival: TERMIN_PLACEHOLDER,
       transport: targetStage?.transport ?? 'Tır',
       note: `${targetStage?.note ?? 'Eksik ürün sevkiyatı.'} (Eksik ürün)`,
       responsible: targetStage?.responsible ?? `${originLabel} Lojistik`,
@@ -3703,86 +4043,6 @@ function toDateTimeLocalValue(displayValue) {
   }
 
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour}:${minute}`;
-}
-
-function extractDate(dateString) {
-  return dateString?.split(' ')[0] ?? '';
-}
-
-function parseDisplayDate(displayValue) {
-  if (!displayValue) {
-    return null;
-  }
-  const [datePart, timePart] = displayValue.split(' ');
-  if (!datePart) {
-    return null;
-  }
-  const [day, month, year] = datePart.split('.').map(Number);
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
-    return null;
-  }
-  let hour = 0;
-  let minute = 0;
-  if (timePart) {
-    const [hourPart, minutePart] = timePart.split(':').map(Number);
-    if (Number.isFinite(hourPart)) {
-      hour = hourPart;
-    }
-    if (Number.isFinite(minutePart)) {
-      minute = minutePart;
-    }
-  }
-  const date = new Date(year, month - 1, day, hour, minute);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date;
-}
-
-function addDays(date, days) {
-  const result = new Date(date.getTime());
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function calculateEstimatedTimeline(orderDate, routeType, hasConsolidation) {
-  const baseDate = parseDisplayDate(orderDate) ?? new Date();
-  const profiles = {
-    Direkt: { firstLeg: 5, buffer: 0, secondLeg: 0 },
-    Bölge: { firstLeg: 4, buffer: 0, secondLeg: 0 },
-    Birleştirme: { firstLeg: 3, buffer: 1, secondLeg: 4 }
-  };
-  const profile = profiles[routeType] ?? profiles.Direkt;
-
-  const firstLegDays = Number.isFinite(profile.firstLeg) ? profile.firstLeg : 5;
-  const bufferDays = hasConsolidation ? (Number.isFinite(profile.buffer) ? profile.buffer : 1) : 0;
-  const secondLegDays = hasConsolidation ? (Number.isFinite(profile.secondLeg) ? profile.secondLeg : 4) : 0;
-
-  const firstLegStartDate = baseDate;
-  const firstLegArrivalDate = addDays(firstLegStartDate, firstLegDays);
-
-  const timeline = {
-    firstLeg: {
-      start: formatDisplayDate(firstLegStartDate),
-      arrival: formatDisplayDate(firstLegArrivalDate)
-    },
-    secondLeg: null,
-    final: ''
-  };
-
-  if (hasConsolidation) {
-    const secondLegStartDate = addDays(firstLegArrivalDate, bufferDays);
-    const secondLegArrivalDate = addDays(secondLegStartDate, secondLegDays);
-    timeline.secondLeg = {
-      start: formatDisplayDate(secondLegStartDate),
-      arrival: formatDisplayDate(secondLegArrivalDate)
-    };
-    timeline.final = formatDisplayDate(secondLegArrivalDate);
-  } else {
-    timeline.final = formatDisplayDate(firstLegArrivalDate);
-  }
-
-  return timeline;
 }
 
 function formatDisplayDate(date) {

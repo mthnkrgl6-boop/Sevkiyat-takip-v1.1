@@ -9,6 +9,10 @@
   --orange-600: #f06716;
   --orange-300: #ffb184;
   --orange-soft: #ffe3d0;
+  --danger-500: #e84a4a;
+  --danger-soft: #fde9e9;
+  --warning-soft: #fff3e5;
+  --info-soft: #e7f1ff;
   --bg: #f3f5fb;
   --card-bg: #ffffff;
   --accent: var(--orange-500);
@@ -179,7 +183,7 @@ body {
 
 .product-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -648,10 +652,113 @@ body {
   color: var(--accent-dark);
 }
 
+.hat-card.overdue {
+  border-color: rgba(232, 74, 74, 0.32);
+  box-shadow: 0 16px 32px rgba(232, 74, 74, 0.18);
+  background: linear-gradient(135deg, var(--danger-soft), #ffffff);
+}
+
+.hat-card.overdue .badge {
+  background: rgba(232, 74, 74, 0.18);
+  color: var(--danger-500);
+}
+
+.hat-card.due-soon {
+  border-color: rgba(255, 122, 41, 0.2);
+  background: linear-gradient(135deg, var(--warning-soft), #ffffff);
+}
+
+.hat-card.missing {
+  border-style: dashed;
+  border-color: rgba(19, 51, 83, 0.26);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), var(--info-soft));
+}
+
 .hat-card-actions {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calendar-item {
+  border: 1px solid rgba(19, 51, 83, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background: #ffffff;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 12px 28px rgba(15, 28, 46, 0.08);
+}
+
+.calendar-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.calendar-item-body {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--navy-700);
+}
+
+.calendar-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(31, 74, 116, 0.12);
+  color: var(--navy-700);
+}
+
+.calendar-item.overdue {
+  border-color: rgba(232, 74, 74, 0.32);
+  background: linear-gradient(135deg, var(--danger-soft), #ffffff);
+}
+
+.calendar-item.overdue .calendar-status {
+  background: rgba(232, 74, 74, 0.18);
+  color: var(--danger-500);
+}
+
+.calendar-item.due-soon {
+  border-color: rgba(255, 122, 41, 0.28);
+  background: linear-gradient(135deg, var(--warning-soft), #ffffff);
+}
+
+.calendar-item.due-soon .calendar-status {
+  background: rgba(255, 122, 41, 0.18);
+  color: var(--accent-dark);
+}
+
+.calendar-item.missing {
+  border-style: dashed;
+  border-color: rgba(19, 51, 83, 0.26);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), var(--info-soft));
+}
+
+.calendar-item.missing .calendar-status {
+  background: rgba(19, 51, 83, 0.12);
+  color: var(--navy-700);
+}
+
+.calendar-item.completed {
+  opacity: 0.75;
+}
+
+.calendar-item.completed .calendar-status {
+  background: rgba(47, 107, 76, 0.16);
+  color: #2f6b4c;
 }
 
 .hat-line-table {
