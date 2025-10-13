@@ -45,9 +45,10 @@
                 <h2 class="card-title">Siparişler</h2>
                 <p class="card-subtitle">Aktif sevkiyatlarınızı yönetin ve detayları görüntüleyin.</p>
               </div>
-              <div class="card-actions">
-                <button id="add-order-btn" class="btn primary">Sipariş Ekle</button>
-                <button id="delete-order-btn" class="btn ghost">Sipariş Sil</button>
+              <div class="card-actions" id="orders-actions">
+                <button id="orders-close-btn" class="btn ghost hidden" type="button">Geri Dön</button>
+                <button id="add-order-btn" class="btn primary" type="button">Sipariş Ekle</button>
+                <button id="delete-order-btn" class="btn ghost" type="button">Sipariş Sil</button>
               </div>
             </div>
             <div class="table-wrapper">
@@ -192,7 +193,7 @@
           <p class="detail-id">Fatura No: <span class="badge" data-field="invoiceNumber"></span></p>
         </div>
         <div class="detail-header-actions">
-          <button class="btn ghost small" data-action="close-detail">Kapat</button>
+          <button class="btn ghost small" data-action="close-detail">Geri Dön</button>
         </div>
         <div class="detail-meta">
           <div>

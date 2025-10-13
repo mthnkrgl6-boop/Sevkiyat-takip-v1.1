@@ -648,6 +648,13 @@ function isSalesOperationUser() {
   return getActiveRoleId() === 'satis-operasyon';
 }
 
+function canDeleteOrders() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+  return isManagerUser() || isSalesOperationUser();
+}
+
 function canManageOutgoingStage(stage) {
   if (!stage) {
     return false;
@@ -887,6 +894,11 @@ function bindNavigation() {
 }
 
 function bindGlobalActions() {
+  document.getElementById('orders-close-btn').addEventListener('click', () => {
+    state.activeOrderId = null;
+    renderOrdersTable();
+  });
+
   document.getElementById('add-order-btn').addEventListener('click', () => {
     if (!userHasPermission('addOrder')) {
       window.alert('Yeni sipariş ekleme işlemi yalnızca Satış Operasyon rolü tarafından yapılabilir.');
@@ -1067,11 +1079,11 @@ function updatePermissionSensitiveUI() {
 
   const deleteOrderBtn = document.getElementById('delete-order-btn');
   if (deleteOrderBtn) {
-    const canDelete = isAuthenticated() && isManagerUser();
+    const canDelete = canDeleteOrders();
     deleteOrderBtn.disabled = !canDelete;
     deleteOrderBtn.title = canDelete
       ? 'Seçili siparişi silin'
-      : 'Sipariş silme işlemi yalnızca yöneticilere açıktır.';
+      : 'Sipariş silme işlemi yalnızca yetkili roller tarafından yapılabilir.';
   }
 }
 
@@ -1262,24 +1274,33 @@ function renderOrdersTable() {
     `;
 
     tbody.appendChild(summaryRow);
-
-    const detailRow = document.createElement('tr');
-    detailRow.dataset.orderId = order.id;
-    detailRow.dataset.rowType = 'detail';
-    detailRow.className = 'order-detail-row';
-
-    const detailCell = document.createElement('td');
-    detailCell.colSpan = 8;
-    detailCell.className = 'order-detail-cell';
-
     if (order.id === state.activeOrderId) {
-      detailRow.classList.add('expanded');
-      detailCell.appendChild(buildOrderDetailFragment(order));
-    }
+      const detailRow = document.createElement('tr');
+      detailRow.dataset.orderId = order.id;
+      detailRow.dataset.rowType = 'detail';
+      detailRow.className = 'order-detail-row expanded';
 
-    detailRow.appendChild(detailCell);
-    tbody.appendChild(detailRow);
+      const detailCell = document.createElement('td');
+      detailCell.colSpan = 8;
+      detailCell.className = 'order-detail-cell';
+      detailCell.appendChild(buildOrderDetailFragment(order));
+
+      detailRow.appendChild(detailCell);
+      tbody.appendChild(detailRow);
+    }
   });
+
+  updateOrderDetailControls();
+}
+
+function updateOrderDetailControls() {
+  const closeBtn = document.getElementById('orders-close-btn');
+  if (!closeBtn) {
+    return;
+  }
+  const hasActiveOrder = Boolean(state.activeOrderId);
+  closeBtn.classList.toggle('hidden', !hasActiveOrder);
+  closeBtn.disabled = !hasActiveOrder;
 }
 
 function buildOrderDetailFragment(order) {
@@ -2752,8 +2773,8 @@ function deleteActiveOrder() {
     return;
   }
 
-  if (!isAuthenticated() || !isManagerUser()) {
-    window.alert('Sipariş silme işlemi yalnızca yönetici yetkisiyle yapılabilir.');
+  if (!canDeleteOrders()) {
+    window.alert('Sipariş silme işlemi yalnızca yetkili roller tarafından yapılabilir.');
     return;
   }
 
