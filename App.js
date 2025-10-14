@@ -418,7 +418,8 @@ function buildWarehouseOptionsMarkup() {
 }
 
 const modalState = {
-  type: null
+  type: null,
+  payload: null
 };
 
 function isAuthenticated() {
@@ -889,7 +890,7 @@ function resetStageApproval(stage) {
   stage.dispatchApproval.note = '';
 }
 
-function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
+function updateLineItemQuantities(orderId, stageId, itemIndex, field, value, element) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) {
     return;
@@ -930,7 +931,99 @@ function updateLineItemQuantities(orderId, stageId, itemIndex, field, value) {
   }
 
   resetStageApproval(stage);
-  renderHatManagement();
+
+  const isInputElement = typeof HTMLInputElement !== 'undefined' && element instanceof HTMLInputElement;
+  if (isInputElement) {
+    const row = element.closest('tr');
+    const readyValue = Number(lineItem.readyQty) || 0;
+    const missingValue = Number(lineItem.missingQty) || 0;
+
+    element.value = field === 'ready' ? String(readyValue) : String(missingValue);
+
+    if (row) {
+      row.classList.toggle('missing', missingValue > 0);
+      const readyInput = row.querySelector('input[data-action="line-ready"]');
+      const missingInput = row.querySelector('input[data-action="line-missing"]');
+      if (readyInput && readyInput !== element) {
+        readyInput.value = String(readyValue);
+      }
+      if (missingInput && missingInput !== element) {
+        missingInput.value = String(missingValue);
+      }
+      const statusBadge = row.querySelector('.badge');
+      if (statusBadge) {
+        statusBadge.className = `badge ${missingValue > 0 ? 'warning' : 'success'}`;
+        statusBadge.textContent = missingValue > 0 ? `Eksik (${missingValue})` : 'Tam';
+      }
+    }
+
+    const card = element.closest('.hat-card');
+    if (card) {
+      const hasMissing = stage.lineItems.some(
+        (item) => item?.isLocal !== false && Number(item.missingQty) > 0
+      );
+      card.classList.toggle('shortage', Boolean(stage.shortageFlagged || hasMissing));
+
+      const header = card.querySelector('.hat-card-header');
+      if (header) {
+        let headerBadge = header.querySelector('[data-shortage-indicator="true"]');
+        if ((stage.shortageFlagged || hasMissing) && !headerBadge) {
+          headerBadge = document.createElement('span');
+          headerBadge.className = 'badge warning';
+          headerBadge.dataset.shortageIndicator = 'true';
+          headerBadge.textContent = 'Eksik Ürün';
+          header.appendChild(headerBadge);
+        }
+        if (!stage.shortageFlagged && !hasMissing && headerBadge) {
+          headerBadge.remove();
+        }
+      }
+
+      const approvalCheckbox = card.querySelector('input[data-action="toggle-approval"]');
+      const approvalInfo = card.querySelector('.hat-approval-info');
+      const manageAllowed = canOperateOutgoingStage(order, stage);
+      const approvalEnabled = stage.progress === 1 && manageAllowed;
+      const inboundReady = inboundStagesCompleted(order, stage);
+      const dispatchReady = isStageDispatchReady(stage);
+      if (approvalCheckbox) {
+        approvalCheckbox.checked = false;
+        approvalCheckbox.disabled = !approvalEnabled;
+      }
+      if (approvalInfo) {
+        approvalInfo.textContent = approvalEnabled
+          ? 'Onay bekleniyor'
+          : 'Hazırlanıyor durumuna geçildiğinde onay verilebilir.';
+        if (approvalEnabled) {
+          approvalInfo.classList.add('pending');
+        } else {
+          approvalInfo.classList.remove('pending');
+        }
+      }
+
+      const sendBtn = card.querySelector('button[data-action="dispatch-stage"]');
+      if (sendBtn) {
+        if (!manageAllowed) {
+          sendBtn.disabled = true;
+          sendBtn.title = inboundReady
+            ? 'Bu sevkiyat farklı bir fabrika tarafından yönetiliyor.'
+            : 'Giriş onayı tamamlanmadan çıkış yapılamaz.';
+        } else if (!inboundReady) {
+          sendBtn.disabled = true;
+          sendBtn.title = 'Giriş onayı tamamlanmadan çıkış yapılamaz.';
+        } else if (!dispatchReady) {
+          sendBtn.disabled = true;
+          sendBtn.title = 'Çıkış onayı ve ürün kontrollerini tamamlayın.';
+        } else {
+          sendBtn.disabled = false;
+          sendBtn.title = '';
+        }
+      }
+    }
+  } else {
+    renderHatManagement();
+  }
+
+  schedulePersist();
 }
 
 function setLineItemComplete(orderId, stageId, itemIndex) {
@@ -1938,6 +2031,7 @@ function renderHatManagement() {
       if (stage.shortageFlagged || hasMissing) {
         const shortageBadge = document.createElement('span');
         shortageBadge.className = 'badge warning';
+        shortageBadge.dataset.shortageIndicator = 'true';
         shortageBadge.textContent = 'Eksik Ürün';
         header.appendChild(shortageBadge);
       }
@@ -2070,7 +2164,10 @@ function renderHatManagement() {
         });
 
         table.appendChild(tbody);
-        card.appendChild(table);
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'hat-table-wrapper';
+        tableWrapper.appendChild(table);
+        card.appendChild(tableWrapper);
         const hasExternalProducts = stage.lineItems.some((item) => item?.isLocal === false);
         if (hasExternalProducts) {
           const infoLine = document.createElement('span');
@@ -2321,15 +2418,16 @@ function handleOrderDetailAction(event, actionSource) {
   }
 
   if (action === 'add-estimate') {
-    const estimate = window.prompt('Tahmini teslimat zamanını girin (GG.AA.YYYY SS:DD):');
-    if (estimate) {
-      const order = state.orders.find((item) => item.id === orderId);
-      if (order) {
-        order.estimatedDelivery = estimate;
-        order.lastUpdate = formatNow();
-        addHistory(order, `Tahmini teslimat ${estimate} olarak güncellendi.`);
-        renderAll();
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const estimateInput = detailContainer?.querySelector('[data-field="estimateInput"]');
+    if (estimateInput instanceof HTMLInputElement) {
+      if (typeof estimateInput.showPicker === 'function') {
+        estimateInput.showPicker();
       }
+      estimateInput.focus();
     }
     return;
   }
@@ -2448,7 +2546,7 @@ function handleOutgoingAction(event) {
   if ((action === 'line-ready' || action === 'line-missing') && (event.type === 'input' || event.type === 'change')) {
     const { orderId, stageId, itemIndex } = target.dataset;
     const field = action === 'line-ready' ? 'ready' : 'missing';
-    updateLineItemQuantities(orderId, stageId, itemIndex, field, target.value);
+    updateLineItemQuantities(orderId, stageId, itemIndex, field, target.value, target);
     return;
   }
 
@@ -2615,8 +2713,9 @@ function deleteProduct(code) {
   schedulePersist();
 }
 
-function openModal(type) {
+function openModal(type, payload = null) {
   modalState.type = type;
+  modalState.payload = payload;
   const modal = document.getElementById('modal');
   const form = document.getElementById('modal-form');
   const title = document.getElementById('modal-title');
@@ -2799,6 +2898,38 @@ function openModal(type) {
     `;
   }
 
+  if (type === 'termin') {
+    const { orderId, stageId } = payload || {};
+    const order = state.orders.find((item) => item.id === orderId);
+    const stage = order?.stages.find((item) => item.id === stageId);
+
+    if (!order || !stage) {
+      modalState.type = null;
+      modalState.payload = null;
+      return;
+    }
+
+    const startValue = hasTerminValue(stage.plannedStart) ? toDateTimeLocalValue(stage.plannedStart) : '';
+    const arrivalValue = hasTerminValue(stage.plannedArrival) ? toDateTimeLocalValue(stage.plannedArrival) : '';
+
+    title.textContent = `${stage.from} → ${stage.to} Termin Güncelle`;
+    form.innerHTML = `
+      <div class="form-group">
+        <label>Planlanan Çıkış</label>
+        <input type="datetime-local" name="plannedStart" value="${startValue}" />
+      </div>
+      <div class="form-group">
+        <label>Planlanan Varış</label>
+        <input type="datetime-local" name="plannedArrival" value="${arrivalValue}" />
+      </div>
+      <p class="form-hint">Alanı boş bırakarak termin bilgisini kaldırabilirsiniz.</p>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" id="modal-cancel">Vazgeç</button>
+        <button type="submit" class="btn primary">Kaydet</button>
+      </div>
+    `;
+  }
+
   form.onsubmit = handleModalSubmit;
   const cancelButton = form.querySelector('#modal-cancel');
   if (cancelButton) {
@@ -2818,6 +2949,7 @@ function closeModal() {
   form.innerHTML = '';
   form.onsubmit = null;
   modalState.type = null;
+  modalState.payload = null;
 }
 
 function initializeOrderFormProducts(form) {
@@ -2976,6 +3108,8 @@ function handleModalSubmit(event) {
     success = addProductFromForm(formData);
   } else if (modalState.type === 'role') {
     success = updateRolesFromForm(formData);
+  } else if (modalState.type === 'termin') {
+    success = updateStageTerminFromForm(formData);
   }
 
   if (success) {
@@ -3429,6 +3563,92 @@ function advanceStage(orderId, stageId) {
   renderAll();
 }
 
+function updateStageTerminFromForm(formData) {
+  const payload = modalState.payload || {};
+  const { orderId, stageId } = payload;
+  if (!orderId || !stageId) {
+    return false;
+  }
+
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    return false;
+  }
+
+  const stage = order.stages.find((item) => item.id === stageId);
+  if (!stage) {
+    return false;
+  }
+
+  if (!canManageOutgoingStage(stage)) {
+    window.alert('Termin güncellemesi yalnızca ilgili çıkış ambarı tarafından yapılabilir.');
+    return false;
+  }
+
+  if (stage.progress >= stageStatuses.length - 1) {
+    window.alert('Tamamlanan aşamalar için termin düzenlenemez.');
+    return false;
+  }
+
+  const startInput = (formData.get('plannedStart') || '').toString().trim();
+  const arrivalInput = (formData.get('plannedArrival') || '').toString().trim();
+
+  const startDate = startInput ? new Date(startInput) : null;
+  const arrivalDate = arrivalInput ? new Date(arrivalInput) : null;
+
+  if (startDate && Number.isNaN(startDate.getTime())) {
+    window.alert('Geçerli bir çıkış tarihi seçiniz.');
+    return false;
+  }
+
+  if (arrivalDate && Number.isNaN(arrivalDate.getTime())) {
+    window.alert('Geçerli bir varış tarihi seçiniz.');
+    return false;
+  }
+
+  if (startDate && arrivalDate && arrivalDate.getTime() < startDate.getTime()) {
+    window.alert('Varış tarihi çıkış tarihinden önce olamaz.');
+    return false;
+  }
+
+  const previousStart = formatTerminValue(stage.plannedStart);
+  const previousArrival = formatTerminValue(stage.plannedArrival);
+
+  const formattedStart = startDate ? formatDisplayDate(startDate) : '';
+  const formattedArrival = arrivalDate ? formatDisplayDate(arrivalDate) : '';
+
+  const resolvedStart = formattedStart || TERMIN_PLACEHOLDER;
+  const resolvedArrival = formattedArrival || TERMIN_PLACEHOLDER;
+
+  stage.plannedStart = resolvedStart;
+  stage.plannedArrival = resolvedArrival;
+
+  const newStart = formatTerminValue(resolvedStart);
+  const newArrival = formatTerminValue(resolvedArrival);
+  const changes = [];
+
+  if (newStart !== previousStart) {
+    changes.push(`Çıkış ${previousStart} → ${newStart}`);
+  }
+
+  if (newArrival !== previousArrival) {
+    changes.push(`Varış ${previousArrival} → ${newArrival}`);
+  }
+
+  if (changes.length === 0) {
+    renderAll();
+    return true;
+  }
+
+  stage.terminUpdatedAt = formatNow();
+  stage.terminUpdatedBy = getActiveUser()?.name ?? null;
+
+  addHistory(order, `${stage.from}: Termin ${changes.join(' • ')} olarak güncellendi.`);
+  order.lastUpdate = formatNow();
+  renderAll();
+  return true;
+}
+
 function editStageTermin(orderId, stageId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) {
@@ -3449,71 +3669,7 @@ function editStageTermin(orderId, stageId) {
     return;
   }
 
-  const startDefault = hasTerminValue(stage.plannedStart) ? stage.plannedStart : '';
-  const arrivalDefault = hasTerminValue(stage.plannedArrival) ? stage.plannedArrival : '';
-
-  const startInput = window.prompt(
-    'Planlanan çıkış tarihini girin (GG.AA.YYYY SS:DD) veya boş bırakın:',
-    startDefault
-  );
-  if (startInput === null) {
-    return;
-  }
-
-  const arrivalInput = window.prompt(
-    'Planlanan varış tarihini girin (GG.AA.YYYY SS:DD) veya boş bırakın:',
-    arrivalDefault
-  );
-  if (arrivalInput === null) {
-    return;
-  }
-
-  const startResult = normalizeTerminInput(startInput);
-  const arrivalResult = normalizeTerminInput(arrivalInput);
-
-  if (!startResult.valid || !arrivalResult.valid) {
-    window.alert('Geçerli bir tarih formatı giriniz. Örnek: 15.03.2024 10:30');
-    return;
-  }
-
-  if (startResult.date && arrivalResult.date && arrivalResult.date.getTime() < startResult.date.getTime()) {
-    window.alert('Varış tarihi çıkış tarihinden önce olamaz.');
-    return;
-  }
-
-  const previousStart = formatTerminValue(stage.plannedStart);
-  const previousArrival = formatTerminValue(stage.plannedArrival);
-
-  const resolvedStart = startResult.formatted ? startResult.formatted : TERMIN_PLACEHOLDER;
-  const resolvedArrival = arrivalResult.formatted ? arrivalResult.formatted : TERMIN_PLACEHOLDER;
-
-  stage.plannedStart = resolvedStart;
-  stage.plannedArrival = resolvedArrival;
-
-  const newStart = formatTerminValue(resolvedStart);
-  const newArrival = formatTerminValue(resolvedArrival);
-  const changes = [];
-  if (newStart !== previousStart) {
-    changes.push(`Çıkış ${previousStart} → ${newStart}`);
-  }
-  if (newArrival !== previousArrival) {
-    changes.push(`Varış ${previousArrival} → ${newArrival}`);
-  }
-
-  if (changes.length === 0) {
-    renderAll();
-    return;
-  }
-
-  stage.terminUpdatedAt = formatNow();
-  stage.terminUpdatedBy = getActiveUser()?.name ?? null;
-
-  if (changes.length > 0) {
-    addHistory(order, `${stage.from}: Termin ${changes.join(' • ')} olarak güncellendi.`);
-  }
-
-  order.lastUpdate = formatNow();
-  renderAll();
+  openModal('termin', { orderId, stageId });
 }
 
 function dispatchStage(orderId, stageId) {

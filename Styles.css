@@ -761,10 +761,17 @@ body {
   color: #2f6b4c;
 }
 
+.hat-table-wrapper {
+  overflow-x: auto;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
 .hat-line-table {
   width: 100%;
+  min-width: 520px;
   border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.75);
+  background: transparent;
   border-radius: 14px;
   overflow: hidden;
   margin-top: 4px;
