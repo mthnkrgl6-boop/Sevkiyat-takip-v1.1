@@ -1640,11 +1640,12 @@ function buildOrderDetailFragment(order) {
     } else {
       order.products.forEach((product) => {
         const li = document.createElement('li');
+        li.className = 'product-item';
         li.innerHTML = `
-          <strong>${escapeHtml(product.name)}</strong>
-          <span>Kod: ${escapeHtml(product.code)}</span>
-          <span>Miktar: ${escapeHtml(product.qty)}</span>
-          <span>Üretim: ${escapeHtml(product.origin)}</span>
+          <span class="product-item__name">${escapeHtml(product.name)}</span>
+          <span class="product-item__meta">Kod: ${escapeHtml(product.code)}</span>
+          <span class="product-item__meta">Miktar: ${escapeHtml(product.qty)}</span>
+          <span class="product-item__meta">Üretim: ${escapeHtml(product.origin)}</span>
         `;
         productList.appendChild(li);
       });
@@ -1661,9 +1662,12 @@ function buildOrderDetailFragment(order) {
     } else {
       order.statusHistory.forEach((status) => {
         const li = document.createElement('li');
+        li.className = 'status-item';
         const time = document.createElement('time');
+        time.className = 'status-time';
         time.textContent = status.timestamp;
         const span = document.createElement('span');
+        span.className = 'status-note';
         span.textContent = status.note;
         li.append(time, span);
         statusList.appendChild(li);
@@ -1676,19 +1680,22 @@ function buildOrderDetailFragment(order) {
     stageList.innerHTML = '';
     order.stages.forEach((stage) => {
       const li = document.createElement('li');
+      li.className = 'stage-item';
       const badge = document.createElement('span');
       badge.className = 'badge stage-badge';
       badge.textContent = `Durum: ${stage.status}`;
 
       const header = document.createElement('strong');
+      header.className = 'stage-item__title';
       header.textContent = `${stage.from} → ${stage.to}`;
       const schedule = document.createElement('span');
-      schedule.className = 'muted';
+      schedule.className = 'stage-item__schedule';
       schedule.textContent = `Planlanan Çıkış: ${formatTerminValue(stage.plannedStart)} • Planlanan Varış: ${formatTerminValue(stage.plannedArrival)}`;
       const logistics = document.createElement('span');
-      logistics.className = 'muted';
+      logistics.className = 'stage-item__logistics';
       logistics.textContent = `Taşıma: ${stage.transport} • Sorumlu: ${stage.responsible}`;
       const note = document.createElement('span');
+      note.className = 'stage-item__note';
       note.textContent = stage.note;
 
       li.append(header, schedule, logistics, note, badge);
