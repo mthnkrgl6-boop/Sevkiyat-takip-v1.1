@@ -496,19 +496,20 @@ body {
 }
 
 .product-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .product-item {
-  background: linear-gradient(135deg, rgba(255, 138, 0, 0.1), rgba(25, 42, 86, 0.08));
-  border-radius: 14px;
-  padding: 10px 12px;
-  box-shadow: inset 0 0 0 1px rgba(25, 42, 86, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: inset 0 0 0 1px rgba(25, 42, 86, 0.12), 0 4px 10px rgba(25, 42, 86, 0.04);
   display: grid;
-  gap: 4px;
-  min-height: 104px;
+  grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(120px, 1fr));
+  gap: 8px 16px;
+  align-items: center;
 }
 
 .product-item__name {
@@ -520,6 +521,17 @@ body {
 .product-item__meta {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .product-item {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .product-item__name {
+    grid-column: 1 / -1;
+  }
 }
 
 .status-list {
@@ -560,34 +572,26 @@ body {
 
 .stage-item {
   position: relative;
-  background: linear-gradient(135deg, rgba(25, 42, 86, 0.12), rgba(6, 18, 60, 0.28));
-  color: #fff;
+  background: #f5f7fb;
+  color: #0b152d;
   border-radius: 18px;
   padding: 16px 18px;
-  box-shadow: 0 12px 22px rgba(6, 18, 60, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(25, 42, 86, 0.12), 0 10px 18px rgba(25, 42, 86, 0.06);
   display: grid;
   gap: 8px;
-}
-
-.stage-item::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 18px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  pointer-events: none;
 }
 
 .stage-item__title {
   font-size: 15px;
   font-weight: 600;
+  color: #0b152d;
 }
 
 .stage-item__schedule,
 .stage-item__logistics,
 .stage-item__note {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(11, 21, 45, 0.85);
 }
 
 .stage-item__note {
@@ -596,8 +600,8 @@ body {
 
 .stage-item .stage-badge {
   justify-self: flex-start;
-  background: rgba(255, 138, 0, 0.9);
-  color: #fff;
+  background: rgba(255, 138, 0, 0.18);
+  color: #a24d00;
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 11px;
