@@ -105,10 +105,14 @@
             <div class="card-header">
               <div>
                 <h2 class="card-title">Ürün Yönetimi</h2>
-                <p class="card-subtitle">Ürünlerin bağlı olduğu üretim tesislerini güncelleyin.</p>
+                <p class="card-subtitle">Excel fiyat listelerini içe aktararak ürün kayıtlarını hızlıca güncelleyin.</p>
               </div>
-              <button id="add-product-btn" class="btn primary">Ürün Ekle</button>
+              <div class="card-actions">
+                <button id="import-product-btn" class="btn ghost" type="button">Excel'den Aktar</button>
+                <button id="add-product-btn" class="btn primary" type="button">Ürün Ekle</button>
+              </div>
             </div>
+            <input id="product-import-input" class="hidden-file-input" type="file" accept=".xlsx,.xls,.csv" />
             <div class="table-wrapper">
               <table class="orders-table">
                 <thead>
@@ -117,6 +121,7 @@
                     <th>Ürün Adı</th>
                     <th>Üretim Fabrikası</th>
                     <th>Ürün Grupları</th>
+                    <th>Birim Fiyatı</th>
                     <th>İşlemler</th>
                   </tr>
                 </thead>
@@ -256,7 +261,7 @@
       </div>
     </div>
   </template>
-
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <script src="App.js"></script>
 </body>
 </html>

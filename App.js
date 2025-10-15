@@ -145,15 +145,78 @@ const warehouseDisplayNames = {
   'Aksaray Altyapı Fabrika': 'Aksaray Altyapı'
 };
 const defaultProductCatalog = [
-  { code: 'MET-001', name: 'Galvaniz Dirsek', factoryId: 'istanbul-sirin', groups: ['Metal Ürünler'] },
-  { code: 'PPR-110', name: 'PPRC Boru 110mm', factoryId: 'aksaray-merkez', groups: ['PPRC Borular'] },
-  { code: 'PVC-063', name: 'PVC Boru 63mm', factoryId: 'sakarya', groups: ['PVC Borular'] },
-  { code: 'RAD-500', name: 'Panel Radyatör 500/1000', factoryId: 'denizli', groups: ['Radyatör'] },
-  { code: 'FLEX-PEX', name: 'Flex Hortum Seti', factoryId: 'denizli', groups: ['Flex Ürünler'] },
-  { code: 'SESSIZ-100', name: 'Sessiz Boru DN100', factoryId: 'aksaray-merkez', groups: ['Sessiz Boru'] },
-  { code: 'KRG-400', name: 'Koruge Boru 400mm', factoryId: 'aksaray-altyapi', groups: ['Koruge'] },
-  { code: 'PE100-225', name: 'PE100 Basınçlı Hat 225mm', factoryId: 'aksaray-altyapi', groups: ['PE100 Hatları'] }
+  {
+    code: 'MET-001',
+    name: 'Galvaniz Dirsek',
+    factoryId: 'istanbul-sirin',
+    groups: ['Metal Ürünler'],
+    price: 145.5
+  },
+  {
+    code: 'PPR-110',
+    name: 'PPRC Boru 110mm',
+    factoryId: 'aksaray-merkez',
+    groups: ['PPRC Borular'],
+    price: 92.0
+  },
+  {
+    code: 'PVC-063',
+    name: 'PVC Boru 63mm',
+    factoryId: 'sakarya',
+    groups: ['PVC Borular'],
+    price: 58.75
+  },
+  {
+    code: 'RAD-500',
+    name: 'Panel Radyatör 500/1000',
+    factoryId: 'denizli',
+    groups: ['Radyatör'],
+    price: 1260.0
+  },
+  {
+    code: 'FLEX-PEX',
+    name: 'Flex Hortum Seti',
+    factoryId: 'denizli',
+    groups: ['Flex Ürünler'],
+    price: 210.0
+  },
+  {
+    code: 'SESSIZ-100',
+    name: 'Sessiz Boru DN100',
+    factoryId: 'aksaray-merkez',
+    groups: ['Sessiz Boru'],
+    price: 175.25
+  },
+  {
+    code: 'KRG-400',
+    name: 'Koruge Boru 400mm',
+    factoryId: 'aksaray-altyapi',
+    groups: ['Koruge'],
+    price: 342.9
+  },
+  {
+    code: 'PE100-225',
+    name: 'PE100 Basınçlı Hat 225mm',
+    factoryId: 'aksaray-altyapi',
+    groups: ['PE100 Hatları'],
+    price: 489.0
+  }
 ];
+
+const PRODUCT_IMPORT_ALIASES = {
+  code: ['Ürün Kodu', 'Kod', 'Stok Kodu', 'Malzeme Kodu', 'Product Code', 'Code'],
+  name: ['Ürün Adı', 'Ürün', 'Malzeme Adı', 'Açıklama', 'Product Name', 'Name'],
+  factory: [
+    'Üretim Fabrikası',
+    'Fabrika',
+    'Üretim Yeri',
+    'Üretim Lokasyonu',
+    'Depo',
+    'Factory'
+  ],
+  groups: ['Ürün Grupları', 'Grup', 'Gruplar', 'Kategori', 'Product Group', 'Group'],
+  price: ['Liste Fiyatı', 'Birim Fiyatı', 'Fiyat', 'Price', 'Net Fiyat']
+};
 
 const STORAGE_KEY = 'kalde-shipment-state-v2';
 
@@ -197,6 +260,360 @@ function cloneUsers(list) {
       : [],
     lastWarehouse: user?.lastWarehouse ?? null
   }));
+}
+
+function normalizeProductPrice(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Number(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = parsePriceInput(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatPriceDisplay(price) {
+  if (typeof price !== 'number' || Number.isNaN(price)) {
+    return '';
+  }
+  return price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parsePriceInput(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  let normalized = trimmed.replace(/\s+/g, '');
+  if (normalized.includes(',')) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (normalized.indexOf('.') !== normalized.lastIndexOf('.')) {
+    const lastDot = normalized.lastIndexOf('.');
+    const integerPart = normalized.slice(0, lastDot).replace(/\./g, '');
+    const decimalPart = normalized.slice(lastDot + 1);
+    normalized = `${integerPart}.${decimalPart}`;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function resolveFactoryIdFromInput(value) {
+  if (!value) {
+    return null;
+  }
+  const normalized = normalizeImportKey(value);
+  if (!normalized) {
+    return null;
+  }
+  const byName = state.factories.find((factory) => normalizeImportKey(factory.name) === normalized);
+  if (byName) {
+    return byName.id;
+  }
+  const byShortName = state.factories.find((factory) => {
+    const short = warehouseDisplayNames[factory.name];
+    return short ? normalizeImportKey(short) === normalized : false;
+  });
+  if (byShortName) {
+    return byShortName.id;
+  }
+  const byId = state.factories.find((factory) => normalizeImportKey(factory.id) === normalized);
+  return byId ? byId.id : null;
+}
+
+function normalizeImportKey(value) {
+  return (value ?? '')
+    .toString()
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^a-z0-9çğıöşü\s]/gi, '')
+    .replace(/\s+/g, '');
+}
+
+function buildImportRowMap(row) {
+  const map = {};
+  Object.entries(row || {}).forEach(([key, val]) => {
+    const normalizedKey = normalizeImportKey(key);
+    if (normalizedKey) {
+      map[normalizedKey] = val;
+    }
+  });
+  return map;
+}
+
+function extractImportValue(map, aliases) {
+  if (!map) {
+    return '';
+  }
+  for (const alias of aliases) {
+    const normalizedAlias = normalizeImportKey(alias);
+    if (normalizedAlias in map) {
+      return map[normalizedAlias];
+    }
+  }
+  return '';
+}
+
+function mapImportedProductRow(row, rowIndex) {
+  const map = buildImportRowMap(row);
+  const codeRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.code);
+  const nameRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.name);
+  const factoryRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.factory);
+  const groupRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.groups);
+  const priceRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.price);
+
+  const code = (codeRaw ?? '').toString().trim().toUpperCase();
+  if (!code) {
+    return { valid: false, reason: 'Ürün kodu eksik', rowIndex };
+  }
+  const name = (nameRaw ?? '').toString().trim();
+  if (!name) {
+    return { valid: false, reason: 'Ürün adı eksik', rowIndex, code };
+  }
+  const factoryId = resolveFactoryIdFromInput(factoryRaw);
+  if (!factoryId) {
+    return { valid: false, reason: 'Üretim fabrikası eşleştirilemedi', rowIndex, code };
+  }
+  const groups = (groupRaw ?? '')
+    .toString()
+    .split(/[,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const price = priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? normalizeProductPrice(priceRaw) : null;
+
+  return {
+    valid: true,
+    product: {
+      code,
+      name,
+      factoryId,
+      groups: groups.length ? groups : ['Tanımsız Grup'],
+      price
+    }
+  };
+}
+
+function detectCsvDelimiter(line) {
+  const commaCount = (line.match(/,/g) || []).length;
+  const semicolonCount = (line.match(/;/g) || []).length;
+  return semicolonCount > commaCount ? ';' : ',';
+}
+
+function splitCsvLine(line, delimiter) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (!inQuotes && char === delimiter) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  values.push(current.trim());
+  return values;
+}
+
+function parseCsvText(text) {
+  if (typeof text !== 'string') {
+    return [];
+  }
+  const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalizedText.split('\n').filter((line) => line.trim().length > 0);
+  if (lines.length === 0) {
+    return [];
+  }
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const headers = splitCsvLine(lines[0], delimiter).map((header) => header.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.trim()) {
+      continue;
+    }
+    const cells = splitCsvLine(line, delimiter);
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = cells[index] ?? '';
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function processImportedProductRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    window.alert('Dosyada aktarılacak ürün kaydı bulunamadı.');
+    return;
+  }
+
+  const summary = {
+    added: 0,
+    updated: 0,
+    skipped: 0,
+    errors: []
+  };
+
+  rows.forEach((row, index) => {
+    const mapped = mapImportedProductRow(row, index + 2);
+    if (!mapped.valid) {
+      summary.skipped += 1;
+      const label = mapped.code ? ` (${mapped.code})` : '';
+      summary.errors.push(`Satır ${mapped.rowIndex ?? index + 2}${label}: ${mapped.reason}`);
+      return;
+    }
+
+    const { product } = mapped;
+    const existingIndex = state.productCatalog.findIndex(
+      (item) => item.code.toUpperCase() === product.code
+    );
+
+    if (existingIndex >= 0) {
+      const current = state.productCatalog[existingIndex];
+      current.name = product.name;
+      current.factoryId = product.factoryId;
+      current.groups = product.groups.slice();
+      if (product.price !== null) {
+        current.price = product.price;
+      } else if (current.price === undefined) {
+        current.price = null;
+      }
+      summary.updated += 1;
+    } else {
+      state.productCatalog.push({ ...product });
+      summary.added += 1;
+    }
+  });
+
+  if (summary.added === 0 && summary.updated === 0) {
+    const errorMessage =
+      summary.errors.length > 0
+        ? `Aktarım tamamlanamadı:\n${summary.errors.join('\n')}`
+        : 'Dosyada geçerli ürün satırı bulunamadı.';
+    window.alert(errorMessage);
+    return;
+  }
+
+  state.productCatalog.sort((a, b) => a.code.localeCompare(b.code, 'tr-TR'));
+  renderProductManagement();
+  schedulePersist();
+
+  const baseMessage = `${summary.added} yeni ürün eklendi, ${summary.updated} ürün güncellendi.`;
+  if (summary.errors.length > 0) {
+    const limitedErrors = summary.errors.slice(0, 5).join('\n');
+    const remaining = summary.errors.length > 5
+      ? `\n... ve ${summary.errors.length - 5} satır daha atlandı.`
+      : '';
+    window.alert(`${baseMessage}\nAtlanan kayıtlar:\n${limitedErrors}${remaining}`);
+  } else {
+    window.alert(baseMessage);
+  }
+}
+
+function startProductImport() {
+  if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+    window.alert('Excel aktarımı yalnızca yönetici yetkisi ile yapılabilir.');
+    return;
+  }
+  const input = document.getElementById('product-import-input');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function handleProductImportChange(event) {
+  const input = event.target;
+  if (!input || !input.files || input.files.length === 0) {
+    return;
+  }
+
+  if (!isAuthenticated() || !userHasPermission('manageProducts')) {
+    window.alert('Excel aktarımı yalnızca yönetici yetkisi ile yapılabilir.');
+    input.value = '';
+    return;
+  }
+
+  const file = input.files[0];
+  const hasXlsxLibrary = typeof window !== 'undefined' && window.XLSX;
+
+  const resetInput = () => {
+    input.value = '';
+  };
+
+  if (hasXlsxLibrary) {
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const data = new Uint8Array(loadEvent.target.result);
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) {
+          window.alert('Excel dosyasında sayfa bulunamadı.');
+          return;
+        }
+        const sheet = workbook.Sheets[sheetName];
+        const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        processImportedProductRows(rows);
+      } catch (error) {
+        console.error('Ürün aktarımı sırasında hata oluştu:', error);
+        window.alert('Dosya okunurken bir hata oluştu. Lütfen geçerli bir Excel veya CSV dosyası seçin.');
+      } finally {
+        resetInput();
+      }
+    };
+    reader.onerror = () => {
+      window.alert('Dosya okunamadı. Lütfen tekrar deneyin.');
+      resetInput();
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    window.alert('Excel dosyalarını içeri aktarabilmek için çevrim içi kitaplık gerekli. Lütfen dosyanızı CSV olarak kaydedip tekrar deneyin.');
+    resetInput();
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (loadEvent) => {
+    try {
+      const text = loadEvent.target.result;
+      const rows = parseCsvText(text);
+      processImportedProductRows(rows);
+    } catch (error) {
+      console.error('CSV aktarımı sırasında hata oluştu:', error);
+      window.alert('CSV dosyası okunamadı. Lütfen biçimi kontrol edin.');
+    } finally {
+      resetInput();
+    }
+  };
+  reader.onerror = () => {
+    window.alert('Dosya okunamadı.');
+    resetInput();
+  };
+  reader.readAsText(file, 'utf-8');
 }
 
 function createDefaultState() {
@@ -1152,6 +1569,14 @@ function bindGlobalActions() {
     }
     openModal('product');
   });
+  const importProductBtn = document.getElementById('import-product-btn');
+  if (importProductBtn) {
+    importProductBtn.addEventListener('click', startProductImport);
+  }
+  const productImportInput = document.getElementById('product-import-input');
+  if (productImportInput) {
+    productImportInput.addEventListener('change', handleProductImportChange);
+  }
   document.getElementById('delete-order-btn').addEventListener('click', deleteActiveOrder);
   document.getElementById('dispatch-all-btn').addEventListener('click', dispatchAllFromWarehouse);
   document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -1341,6 +1766,15 @@ function updatePermissionSensitiveUI() {
     addProductBtn.disabled = !canManageProducts;
     addProductBtn.title = canManageProducts
       ? 'Yeni ürün ekleyin'
+      : 'Ürün yönetimi yalnızca yöneticiler tarafından yapılabilir.';
+  }
+
+  const importProductBtn = document.getElementById('import-product-btn');
+  if (importProductBtn) {
+    const canImportProducts = isAuthenticated() && userHasPermission('manageProducts');
+    importProductBtn.disabled = !canImportProducts;
+    importProductBtn.title = canImportProducts
+      ? 'Excel fiyat listesinden ürün aktarın'
       : 'Ürün yönetimi yalnızca yöneticiler tarafından yapılabilir.';
   }
 }
@@ -1788,6 +2222,8 @@ function renderProductManagement() {
     }
     const factoryCell = document.createElement('td');
     const groupCell = document.createElement('td');
+    const priceCell = document.createElement('td');
+    priceCell.className = 'numeric-cell';
     const productGroups = Array.isArray(product.groups) && product.groups.length > 0
       ? product.groups
       : ['Tanımsız Grup'];
@@ -1816,9 +2252,20 @@ function renderProductManagement() {
       groupsInput.dataset.field = 'groups';
       groupsInput.placeholder = 'Grup (virgülle)';
       groupCell.appendChild(groupsInput);
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'text';
+      priceInput.inputMode = 'decimal';
+      priceInput.placeholder = 'Fiyat';
+      priceInput.value = formatPriceDisplay(product.price);
+      priceInput.dataset.productCode = product.code;
+      priceInput.dataset.field = 'price';
+      priceInput.className = 'price-input';
+      priceCell.appendChild(priceInput);
     } else {
       factoryCell.textContent = getFactoryNameById(product.factoryId) || '-';
       groupCell.textContent = productGroups.join(', ');
+      priceCell.textContent = formatPriceDisplay(product.price) || '-';
     }
 
     const actionsCell = document.createElement('td');
@@ -1845,7 +2292,7 @@ function renderProductManagement() {
       actionsCell.innerHTML = `<span class="muted">${actionMessage}</span>`;
     }
 
-    tr.append(codeCell, nameCell, factoryCell, groupCell, actionsCell);
+    tr.append(codeCell, nameCell, factoryCell, groupCell, priceCell, actionsCell);
     tbody.appendChild(tr);
   });
 }
@@ -2659,6 +3106,7 @@ function saveProductEdits(code, row) {
   const nameInput = row.querySelector("input[data-field='name']");
   const groupInput = row.querySelector("input[data-field='groups']");
   const factorySelect = row.querySelector("select[data-field='factoryId']");
+  const priceInput = row.querySelector("input[data-field='price']");
 
   const nameValue = (nameInput?.value || '').trim();
   if (!nameValue) {
@@ -2672,6 +3120,18 @@ function saveProductEdits(code, row) {
     .map((item) => item.trim())
     .filter(Boolean);
 
+  let parsedPrice = null;
+  if (priceInput) {
+    const priceRaw = priceInput.value ?? '';
+    if (priceRaw.trim()) {
+      parsedPrice = parsePriceInput(priceRaw);
+      if (parsedPrice === null) {
+        window.alert('Geçerli bir fiyat değeri girin.');
+        return;
+      }
+    }
+  }
+
   const product = state.productCatalog.find((item) => item.code === code);
   if (!product) {
     return;
@@ -2682,6 +3142,9 @@ function saveProductEdits(code, row) {
   if (factorySelect) {
     product.factoryId = factorySelect.value;
   }
+  if (priceInput) {
+    product.price = parsedPrice;
+  }
 
   schedulePersist();
 
@@ -2690,6 +3153,9 @@ function saveProductEdits(code, row) {
   }
   if (nameInput) {
     nameInput.value = nameValue;
+  }
+  if (priceInput) {
+    priceInput.value = formatPriceDisplay(product.price);
   }
 
   renderProductManagement();
@@ -2838,6 +3304,10 @@ function openModal(type, payload = null) {
       <div class="form-group">
         <label>Ürün Grupları</label>
         <input type="text" name="productGroups" placeholder="Virgülle ayırın" />
+      </div>
+      <div class="form-group">
+        <label>Birim Fiyatı</label>
+        <input type="text" name="productPrice" inputmode="decimal" placeholder="Örn. 125,50" />
       </div>
       <div class="form-actions">
         <button type="button" class="btn ghost" id="modal-cancel">Vazgeç</button>
@@ -3299,10 +3769,17 @@ function addProductFromForm(formData) {
   const nameInput = (formData.get('productName') || '').toString().trim();
   const factoryId = formData.get('factoryId');
   const groupsInput = (formData.get('productGroups') || '').toString();
+  const priceInputRaw = (formData.get('productPrice') || '').toString();
   const groups = groupsInput
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+  const priceValue = priceInputRaw.trim() ? parsePriceInput(priceInputRaw) : null;
+
+  if (priceInputRaw.trim() && priceValue === null) {
+    window.alert('Geçerli bir fiyat değeri girin.');
+    return false;
+  }
 
   if (!code) {
     window.alert('Ürün kodu boş bırakılamaz.');
@@ -3329,7 +3806,8 @@ function addProductFromForm(formData) {
     code,
     name: nameInput,
     factoryId,
-    groups: groups.length ? groups : ['Tanımsız Grup']
+    groups: groups.length ? groups : ['Tanımsız Grup'],
+    price: priceValue
   });
   return true;
 }

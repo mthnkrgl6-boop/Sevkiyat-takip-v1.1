@@ -353,6 +353,20 @@ body {
   width: 70px;
 }
 
+.numeric-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.price-input {
+  width: 120px;
+  text-align: right;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
 
 .order-detail-row {
   background: transparent;
