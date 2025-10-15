@@ -244,8 +244,7 @@ function cloneFactories(list) {
 function cloneProductCatalog(list) {
   return (list || []).map((product) => ({
     ...product,
-    groups: Array.isArray(product.groups) ? product.groups.slice() : [],
-    price: normalizeProductPrice(product.price)
+    groups: Array.isArray(product.groups) ? product.groups.slice() : []
   }));
 }
 
