@@ -150,56 +150,64 @@ const defaultProductCatalog = [
     name: 'Galvaniz Dirsek',
     factoryId: 'istanbul-sirin',
     groups: ['Metal Ürünler'],
-    price: 145.5
+    price: 145.5,
+    stockQty: 0
   },
   {
     code: 'PPR-110',
     name: 'PPRC Boru 110mm',
     factoryId: 'aksaray-merkez',
     groups: ['PPRC Borular'],
-    price: 92.0
+    price: 92.0,
+    stockQty: 0
   },
   {
     code: 'PVC-063',
     name: 'PVC Boru 63mm',
     factoryId: 'sakarya',
     groups: ['PVC Borular'],
-    price: 58.75
+    price: 58.75,
+    stockQty: 0
   },
   {
     code: 'RAD-500',
     name: 'Panel Radyatör 500/1000',
     factoryId: 'denizli',
     groups: ['Radyatör'],
-    price: 1260.0
+    price: 1260.0,
+    stockQty: 0
   },
   {
     code: 'FLEX-PEX',
     name: 'Flex Hortum Seti',
     factoryId: 'denizli',
     groups: ['Flex Ürünler'],
-    price: 210.0
+    price: 210.0,
+    stockQty: 0
   },
   {
     code: 'SESSIZ-100',
     name: 'Sessiz Boru DN100',
     factoryId: 'aksaray-merkez',
     groups: ['Sessiz Boru'],
-    price: 175.25
+    price: 175.25,
+    stockQty: 0
   },
   {
     code: 'KRG-400',
     name: 'Koruge Boru 400mm',
     factoryId: 'aksaray-altyapi',
     groups: ['Koruge'],
-    price: 342.9
+    price: 342.9,
+    stockQty: 0
   },
   {
     code: 'PE100-225',
     name: 'PE100 Basınçlı Hat 225mm',
     factoryId: 'aksaray-altyapi',
     groups: ['PE100 Hatları'],
-    price: 489.0
+    price: 489.0,
+    stockQty: 0
   }
 ];
 
@@ -215,7 +223,8 @@ const PRODUCT_IMPORT_ALIASES = {
     'Factory'
   ],
   groups: ['Ürün Grupları', 'Grup', 'Gruplar', 'Kategori', 'Product Group', 'Group'],
-  price: ['Liste Fiyatı', 'Birim Fiyatı', 'Fiyat', 'Price', 'Net Fiyat']
+  price: ['Liste Fiyatı', 'Birim Fiyatı', 'Fiyat', 'Price', 'Net Fiyat'],
+  stock: ['Stok', 'Stok Adedi', 'Mevcut Stok', 'Depo Stoku', 'Stock', 'Quantity']
 };
 
 const PRODUCT_CODE_FALLBACK_KEYWORDS = ['kod', 'stock', 'stok', 'malzeme'];
@@ -247,7 +256,11 @@ function cloneProductCatalog(list) {
   return (list || []).map((product) => ({
     ...product,
     groups: Array.isArray(product.groups) ? product.groups.slice() : [],
-    price: normalizeProductPrice(product.price)
+    price: normalizeProductPrice(product.price),
+    stockQty: (function resolveStock(value) {
+      const normalised = normalizeStockQuantity(value);
+      return normalised ?? 0;
+    })(product.stockQty)
   }));
 }
 
@@ -279,11 +292,53 @@ function normalizeProductPrice(value) {
   return null;
 }
 
+function normalizeStockQuantity(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value < 0) {
+      return null;
+    }
+    return Math.floor(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    let normalised = trimmed.replace(/\s+/g, '');
+    if (normalised.includes(',')) {
+      normalised = normalised.replace(/\./g, '').replace(',', '.');
+    } else if (normalised.includes('.')) {
+      const segments = normalised.split('.');
+      if (segments.length > 2) {
+        normalised = segments.join('');
+      } else if (segments[1].length === 3 && segments[0].length >= 1) {
+        normalised = segments.join('');
+      }
+    }
+    const parsed = Number(normalised);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    return Math.floor(parsed);
+  }
+  return null;
+}
+
 function formatPriceDisplay(price) {
   if (typeof price !== 'number' || Number.isNaN(price)) {
     return '';
   }
   return price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatQuantityDisplay(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '0';
+  }
+  return value.toLocaleString('tr-TR');
 }
 
 function parsePriceInput(value) {
@@ -396,6 +451,7 @@ function mapImportedProductRow(row, rowIndex) {
   const factoryRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.factory);
   const groupRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.groups);
   const priceRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.price);
+  const stockRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.stock);
 
   let resolvedCodeRaw = codeRaw;
   if (!resolvedCodeRaw) {
@@ -419,6 +475,7 @@ function mapImportedProductRow(row, rowIndex) {
     .map((item) => item.trim())
     .filter(Boolean);
   const price = priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? normalizeProductPrice(priceRaw) : null;
+  const stockQty = normalizeStockQuantity(stockRaw);
 
   return {
     valid: true,
@@ -427,7 +484,8 @@ function mapImportedProductRow(row, rowIndex) {
       name,
       factoryId,
       groups: groups.length ? groups : ['Tanımsız Grup'],
-      price
+      price,
+      stockQty
     }
   };
 }
@@ -528,9 +586,17 @@ function processImportedProductRows(rows) {
       } else if (current.price === undefined) {
         current.price = null;
       }
+      if (product.stockQty !== null && product.stockQty !== undefined) {
+        current.stockQty = product.stockQty;
+      } else if (current.stockQty === undefined) {
+        current.stockQty = 0;
+      }
       summary.updated += 1;
     } else {
-      state.productCatalog.push({ ...product });
+      state.productCatalog.push({
+        ...product,
+        stockQty: product.stockQty ?? 0
+      });
       summary.added += 1;
     }
   });
@@ -2241,6 +2307,35 @@ function renderArchive() {
   });
 }
 
+function calculateActiveOrderDemand(productCode, factoryId) {
+  if (!productCode) {
+    return 0;
+  }
+  const activeOrders = Array.isArray(state.orders) ? state.orders : [];
+  const factoryName = factoryId ? getFactoryNameById(factoryId) : '';
+  let total = 0;
+
+  activeOrders.forEach((order) => {
+    if (!Array.isArray(order.products)) {
+      return;
+    }
+    order.products.forEach((item) => {
+      if (item?.code !== productCode) {
+        return;
+      }
+      const originMissing = !item.origin || item.origin === '-' || !item.origin.toString().trim();
+      if (!factoryName || originMissing || isSameLocationName(item.origin, factoryName)) {
+        const qty = Number(item.qty);
+        if (Number.isFinite(qty) && qty > 0) {
+          total += qty;
+        }
+      }
+    });
+  });
+
+  return total;
+}
+
 function renderProductManagement() {
   const tbody = document.getElementById('product-table-body');
   if (!tbody) {
@@ -2272,6 +2367,10 @@ function renderProductManagement() {
     const groupCell = document.createElement('td');
     const priceCell = document.createElement('td');
     priceCell.className = 'numeric-cell';
+    const stockCell = document.createElement('td');
+    stockCell.className = 'numeric-cell';
+    const demandCell = document.createElement('td');
+    demandCell.className = 'numeric-cell demand-cell';
     const productGroups = Array.isArray(product.groups) && product.groups.length > 0
       ? product.groups
       : ['Tanımsız Grup'];
@@ -2310,11 +2409,28 @@ function renderProductManagement() {
       priceInput.dataset.field = 'price';
       priceInput.className = 'price-input';
       priceCell.appendChild(priceInput);
+
+      const stockInput = document.createElement('input');
+      stockInput.type = 'number';
+      stockInput.min = '0';
+      stockInput.step = '1';
+      stockInput.placeholder = 'Stok';
+      const currentStock = Number.isFinite(product.stockQty) ? product.stockQty : 0;
+      stockInput.value = currentStock.toString();
+      stockInput.dataset.productCode = product.code;
+      stockInput.dataset.field = 'stockQty';
+      stockInput.className = 'quantity-input';
+      stockCell.appendChild(stockInput);
     } else {
       factoryCell.textContent = getFactoryNameById(product.factoryId) || '-';
       groupCell.textContent = productGroups.join(', ');
       priceCell.textContent = formatPriceDisplay(product.price) || '-';
+      const stockValue = Number.isFinite(product.stockQty) ? product.stockQty : 0;
+      stockCell.textContent = formatQuantityDisplay(stockValue);
     }
+
+    const demandValue = calculateActiveOrderDemand(product.code, product.factoryId);
+    demandCell.textContent = formatQuantityDisplay(demandValue);
 
     const actionsCell = document.createElement('td');
     actionsCell.className = 'product-actions-cell';
@@ -2340,7 +2456,7 @@ function renderProductManagement() {
       actionsCell.innerHTML = `<span class="muted">${actionMessage}</span>`;
     }
 
-    tr.append(codeCell, nameCell, factoryCell, groupCell, priceCell, actionsCell);
+    tr.append(codeCell, nameCell, factoryCell, groupCell, priceCell, stockCell, demandCell, actionsCell);
     tbody.appendChild(tr);
   });
 }
@@ -3155,6 +3271,7 @@ function saveProductEdits(code, row) {
   const groupInput = row.querySelector("input[data-field='groups']");
   const factorySelect = row.querySelector("select[data-field='factoryId']");
   const priceInput = row.querySelector("input[data-field='price']");
+  const stockInput = row.querySelector("input[data-field='stockQty']");
 
   const nameValue = (nameInput?.value || '').trim();
   if (!nameValue) {
@@ -3180,6 +3297,20 @@ function saveProductEdits(code, row) {
     }
   }
 
+  let parsedStock = null;
+  if (stockInput) {
+    const stockRaw = stockInput.value ?? '';
+    if (stockRaw.trim()) {
+      parsedStock = normalizeStockQuantity(stockRaw);
+      if (parsedStock === null) {
+        window.alert('Stok adedi için geçerli bir sayı girin.');
+        return;
+      }
+    } else {
+      parsedStock = 0;
+    }
+  }
+
   const product = state.productCatalog.find((item) => item.code === code);
   if (!product) {
     return;
@@ -3193,6 +3324,9 @@ function saveProductEdits(code, row) {
   if (priceInput) {
     product.price = parsedPrice;
   }
+  if (stockInput) {
+    product.stockQty = parsedStock ?? 0;
+  }
 
   schedulePersist();
 
@@ -3204,6 +3338,9 @@ function saveProductEdits(code, row) {
   }
   if (priceInput) {
     priceInput.value = formatPriceDisplay(product.price);
+  }
+  if (stockInput) {
+    stockInput.value = (Number.isFinite(product.stockQty) ? product.stockQty : 0).toString();
   }
 
   renderProductManagement();
@@ -3356,6 +3493,10 @@ function openModal(type, payload = null) {
       <div class="form-group">
         <label>Birim Fiyatı</label>
         <input type="text" name="productPrice" inputmode="decimal" placeholder="Örn. 125,50" />
+      </div>
+      <div class="form-group">
+        <label>Stok Adedi</label>
+        <input type="number" name="productStock" min="0" step="1" value="0" />
       </div>
       <div class="form-actions">
         <button type="button" class="btn ghost" id="modal-cancel">Vazgeç</button>
@@ -3818,11 +3959,21 @@ function addProductFromForm(formData) {
   const factoryId = formData.get('factoryId');
   const groupsInput = (formData.get('productGroups') || '').toString();
   const priceInputRaw = (formData.get('productPrice') || '').toString();
+  const stockInputRaw = (formData.get('productStock') || '').toString();
   const groups = groupsInput
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
   const priceValue = priceInputRaw.trim() ? parsePriceInput(priceInputRaw) : null;
+  let stockQty = 0;
+  if (stockInputRaw.trim()) {
+    const parsedStock = normalizeStockQuantity(stockInputRaw);
+    if (parsedStock === null) {
+      window.alert('Stok adedi için geçerli bir sayı girin.');
+      return false;
+    }
+    stockQty = parsedStock;
+  }
 
   if (priceInputRaw.trim() && priceValue === null) {
     window.alert('Geçerli bir fiyat değeri girin.');
@@ -3855,7 +4006,8 @@ function addProductFromForm(formData) {
     name: nameInput,
     factoryId,
     groups: groups.length ? groups : ['Tanımsız Grup'],
-    price: priceValue
+    price: priceValue,
+    stockQty
   });
   return true;
 }

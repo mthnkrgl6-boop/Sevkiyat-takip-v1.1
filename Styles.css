@@ -1155,6 +1155,26 @@ body {
   color: var(--navy-900);
 }
 
+#product-table-body input[type='number'] {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  color: var(--navy-900);
+  text-align: right;
+}
+
+.quantity-input {
+  width: 110px;
+}
+
+.demand-cell {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
 .product-actions-cell {
   min-width: 150px;
   text-align: right;
