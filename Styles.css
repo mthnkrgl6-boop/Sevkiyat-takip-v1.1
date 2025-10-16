@@ -538,6 +538,15 @@ body {
   white-space: nowrap;
 }
 
+.product-item--shortage {
+  box-shadow: inset 0 0 0 1px rgba(255, 140, 0, 0.35), 0 6px 16px rgba(255, 140, 0, 0.18);
+}
+
+.product-item__meta--shortage {
+  color: var(--accent-orange);
+  font-weight: 600;
+}
+
 @media (max-width: 720px) {
   .product-item {
     grid-template-columns: repeat(2, minmax(140px, 1fr));

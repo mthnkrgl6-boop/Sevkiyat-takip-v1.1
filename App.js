@@ -2189,12 +2189,48 @@ function buildOrderDetailFragment(order) {
       order.products.forEach((product) => {
         const li = document.createElement('li');
         li.className = 'product-item';
-        li.innerHTML = `
-          <span class="product-item__name">${escapeHtml(product.name)}</span>
-          <span class="product-item__meta">Kod: ${escapeHtml(product.code)}</span>
-          <span class="product-item__meta">Miktar: ${escapeHtml(product.qty)}</span>
-          <span class="product-item__meta">Üretim: ${escapeHtml(product.origin)}</span>
-        `;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'product-item__name';
+        nameSpan.textContent = product.name ?? '-';
+
+        const codeSpan = document.createElement('span');
+        codeSpan.className = 'product-item__meta';
+        codeSpan.textContent = `Kod: ${product.code ?? '-'}`;
+
+        const qtySpan = document.createElement('span');
+        qtySpan.className = 'product-item__meta';
+
+        const totalShortage = Array.isArray(product.shortageDetails)
+          ? product.shortageDetails.reduce((sum, entry) => sum + (Number(entry.qty) || 0), 0)
+          : 0;
+
+        const shortageDetails = Array.isArray(product.shortageDetails)
+          ? product.shortageDetails
+              .map((entry) => {
+                const location = entry.location || '-';
+                const quantity = Number(entry.qty) || 0;
+                const time = entry.timestamp || '';
+                return `${location}: ${quantity} ${time ? `(${time})` : ''}`.trim();
+              })
+              .join(' • ')
+          : '';
+
+        qtySpan.textContent = `Miktar: ${product.qty ?? '-'}`;
+        if (totalShortage > 0) {
+          qtySpan.textContent += ` • Eksik: ${totalShortage}`;
+          qtySpan.classList.add('product-item__meta--shortage');
+          if (shortageDetails) {
+            qtySpan.title = shortageDetails;
+          }
+          li.classList.add('product-item--shortage');
+        }
+
+        const originSpan = document.createElement('span');
+        originSpan.className = 'product-item__meta';
+        originSpan.textContent = `Üretim: ${product.origin ?? '-'}`;
+
+        li.append(nameSpan, codeSpan, qtySpan, originSpan);
         productList.appendChild(li);
       });
     }
@@ -4404,9 +4440,11 @@ function dispatchStage(orderId, stageId) {
     : [];
 
   if (shortageItems.length > 0) {
+    const shortageTimestamp = formatNow();
     stage.shortages = stage.shortages || [];
-    stage.shortages.push({ timestamp: formatNow(), items: shortageItems });
+    stage.shortages.push({ timestamp: shortageTimestamp, items: shortageItems });
     stage.shortageFlagged = true;
+    registerOrderShortage(order, stage, shortageItems, stage.from, shortageTimestamp);
     const summary = shortageItems.map((item) => `${item.code} x${item.qty}`).join(', ');
     addHistory(order, `${stage.from}: Eksik ürün bildirimi - ${summary}`);
     const revisionOrder = createShortageOrder(order, stage, shortageItems);
@@ -4576,8 +4614,10 @@ function reportStageShortage(orderId, stageId) {
   }
 
   stage.shortageFlagged = true;
+  const shortageTimestamp = formatNow();
   stage.shortages = stage.shortages || [];
-  stage.shortages.push({ timestamp: formatNow(), items: filteredShortages });
+  stage.shortages.push({ timestamp: shortageTimestamp, items: filteredShortages });
+  registerOrderShortage(order, stage, filteredShortages, stage.to, shortageTimestamp);
 
   const summary = filteredShortages.map((item) => `${item.code} x${item.qty}`).join(', ');
   addHistory(order, `${stage.to}: Eksik ürün bildirimi - ${summary}`);
@@ -4620,6 +4660,40 @@ function parseShortageInput(input, products) {
     .filter(Boolean);
 }
 
+function registerOrderShortage(order, stage, shortageItems, locationLabel, timestamp) {
+  if (!order || !Array.isArray(shortageItems) || shortageItems.length === 0) {
+    return;
+  }
+
+  const entryTimestamp = timestamp || formatNow();
+  const location = locationLabel || stage?.to || stage?.from || '-';
+  order.shortageRecords = order.shortageRecords || [];
+
+  shortageItems.forEach((item) => {
+    const qty = Number(item.qty) || 0;
+    if (qty <= 0) {
+      return;
+    }
+
+    const record = {
+      code: item.code,
+      name: item.name,
+      qty,
+      location,
+      timestamp: entryTimestamp
+    };
+
+    order.shortageRecords.push(record);
+
+    const product = order.products.find((productItem) => productItem.code === item.code);
+    if (product) {
+      product.shortageDetails = product.shortageDetails || [];
+      product.shortageDetails.push(record);
+      product.shortageTotal = (product.shortageTotal || 0) + qty;
+    }
+  });
+}
+
 function createShortageOrder(order, stage, shortageItems) {
   const baseOrderId = order.revisionOf ?? getBaseOrderId(order.id);
   order.revisionOf = baseOrderId;
@@ -4630,7 +4704,35 @@ function createShortageOrder(order, stage, shortageItems) {
   const originLabel = targetStage?.from ?? order.currentLocation;
   const destinationLabel = targetStage?.to ?? order.nextLocation;
   const orderFinal = order.finalDestination || order.stages[order.stages.length - 1]?.to;
-  const isFinalStage = stageIndex === order.stages.length - 1;
+
+  const remainingStages = stageIndex > -1 ? order.stages.slice(stageIndex) : [targetStage];
+  const normalizedStages = remainingStages.length > 0 ? remainingStages : [stage];
+
+  const stagePlans = normalizedStages.map((sourceStage, index) => {
+    const baseNote = sourceStage?.note || '';
+    const stageNote = index === 0
+      ? `${baseNote || 'Eksik ürün sevkiyatı.'}${baseNote ? ' (Eksik ürün)' : ''}`
+      : baseNote || 'Eksik ürün sevkiyatı devamı.';
+
+    return {
+      id: `${revisionId}-${index + 1}`,
+      from: sourceStage?.from ?? originLabel,
+      to: sourceStage?.to ?? destinationLabel,
+      plannedStart: TERMIN_PLACEHOLDER,
+      plannedArrival: TERMIN_PLACEHOLDER,
+      transport: sourceStage?.transport ?? 'Tır',
+      note: stageNote.trim(),
+      responsible: sourceStage?.responsible ?? `${sourceStage?.from ?? originLabel} Lojistik`,
+      progress: 0,
+      status: stageStatuses[0],
+      completed: false
+    };
+  });
+
+  const firstStage = stagePlans[0];
+  const lastStage = stagePlans[stagePlans.length - 1];
+  const nextLocation = firstStage?.to ?? destinationLabel;
+  const finalDestination = lastStage?.to ?? orderFinal ?? destinationLabel;
 
   const revisionOrder = {
     id: revisionId,
@@ -4641,10 +4743,10 @@ function createShortageOrder(order, stage, shortageItems) {
     routeType: order.routeType,
     accountName: order.accountName,
     currentLocation: originLabel,
-    nextLocation: destinationLabel,
+    nextLocation,
     estimatedDelivery: TERMIN_PLACEHOLDER,
     lastUpdate: now,
-    finalDestination: isFinalStage ? orderFinal : destinationLabel,
+    finalDestination,
     statusHistory: [],
     products: shortageItems.map((item) => ({
       code: item.code,
@@ -4652,7 +4754,8 @@ function createShortageOrder(order, stage, shortageItems) {
       qty: item.qty,
       origin: item.origin
     })),
-    stages: []
+    stages: stagePlans,
+    consolidationPoint: order.consolidationPoint || null
   };
 
   revisionOrder.statusHistory.push({
@@ -4670,24 +4773,6 @@ function createShortageOrder(order, stage, shortageItems) {
       .map((item) => `${item.code} x${item.qty}`)
       .join(', ')}`
   });
-
-  const stagePlans = [
-    {
-      id: `${revisionId}-1`,
-      from: originLabel,
-      to: destinationLabel,
-      plannedStart: TERMIN_PLACEHOLDER,
-      plannedArrival: TERMIN_PLACEHOLDER,
-      transport: targetStage?.transport ?? 'Tır',
-      note: `${targetStage?.note ?? 'Eksik ürün sevkiyatı.'} (Eksik ürün)`,
-      responsible: targetStage?.responsible ?? `${originLabel} Lojistik`,
-      progress: 0,
-      status: stageStatuses[0],
-      completed: false
-    }
-  ];
-
-  revisionOrder.stages = stagePlans;
 
   prepareStageData(revisionOrder);
   updateOrderFlow(revisionOrder);
