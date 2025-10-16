@@ -218,6 +218,8 @@ const PRODUCT_IMPORT_ALIASES = {
   price: ['Liste Fiyatı', 'Birim Fiyatı', 'Fiyat', 'Price', 'Net Fiyat']
 };
 
+const PRODUCT_CODE_FALLBACK_KEYWORDS = ['kod', 'stock', 'stok', 'malzeme'];
+
 const STORAGE_KEY = 'kalde-shipment-state-v2';
 
 const storageAvailable = (() => {
@@ -244,7 +246,8 @@ function cloneFactories(list) {
 function cloneProductCatalog(list) {
   return (list || []).map((product) => ({
     ...product,
-    groups: Array.isArray(product.groups) ? product.groups.slice() : []
+    groups: Array.isArray(product.groups) ? product.groups.slice() : [],
+    price: normalizeProductPrice(product.price)
   }));
 }
 
@@ -363,6 +366,29 @@ function extractImportValue(map, aliases) {
   return '';
 }
 
+function findFallbackImportValue(map, keywords) {
+  if (!map) {
+    return '';
+  }
+  const entries = Object.entries(map);
+  for (const keyword of keywords) {
+    const normalizedKeyword = normalizeImportKey(keyword);
+    if (!normalizedKeyword) {
+      continue;
+    }
+    const matchedEntry = entries.find(([key, value]) => {
+      if (!value && value !== 0) {
+        return false;
+      }
+      return key.includes(normalizedKeyword);
+    });
+    if (matchedEntry) {
+      return matchedEntry[1];
+    }
+  }
+  return '';
+}
+
 function mapImportedProductRow(row, rowIndex) {
   const map = buildImportRowMap(row);
   const codeRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.code);
@@ -371,7 +397,11 @@ function mapImportedProductRow(row, rowIndex) {
   const groupRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.groups);
   const priceRaw = extractImportValue(map, PRODUCT_IMPORT_ALIASES.price);
 
-  const code = (codeRaw ?? '').toString().trim().toUpperCase();
+  let resolvedCodeRaw = codeRaw;
+  if (!resolvedCodeRaw) {
+    resolvedCodeRaw = findFallbackImportValue(map, PRODUCT_CODE_FALLBACK_KEYWORDS);
+  }
+  const code = (resolvedCodeRaw ?? '').toString().trim().toUpperCase();
   if (!code) {
     return { valid: false, reason: 'Ürün kodu eksik', rowIndex };
   }
@@ -1165,6 +1195,16 @@ function isSameLocationName(a, b) {
   return normalizedA === normalizedB;
 }
 
+function userHasFactoryAssignment(user, factoryName) {
+  if (!user || !factoryName) {
+    return false;
+  }
+  const assignments = Array.isArray(user.responsibleFactories)
+    ? user.responsibleFactories
+    : [];
+  return assignments.some((name) => isSameLocationName(name, factoryName));
+}
+
 function userCanManageFactory(factoryName) {
   if (!factoryName) {
     return false;
@@ -1179,10 +1219,18 @@ function userCanManageFactory(factoryName) {
   if (!activeUser) {
     return false;
   }
-  const assignments = Array.isArray(activeUser.responsibleFactories)
-    ? activeUser.responsibleFactories
-    : [];
-  return assignments.some((name) => isSameLocationName(name, factoryName));
+  return userHasFactoryAssignment(activeUser, factoryName);
+}
+
+function userIsWarehouseSupervisorFor(factoryName) {
+  if (!factoryName || !isAuthenticated()) {
+    return false;
+  }
+  const activeUser = getActiveUser();
+  if (!activeUser || activeUser.roleId !== 'ambar-sorumlusu') {
+    return false;
+  }
+  return userHasFactoryAssignment(activeUser, factoryName);
 }
 
 function isProductManagedByStage(stage, product) {
@@ -1223,14 +1271,14 @@ function canManageOutgoingStage(stage) {
   if (!stage) {
     return false;
   }
-  return userCanManageFactory(stage.from);
+  return userIsWarehouseSupervisorFor(stage.from);
 }
 
 function canManageIncomingStage(stage) {
   if (!stage) {
     return false;
   }
-  return userCanManageFactory(stage.to);
+  return userIsWarehouseSupervisorFor(stage.to);
 }
 
 function inboundStagesCompleted(order, stage) {
@@ -4017,7 +4065,7 @@ function advanceStage(orderId, stageId) {
   const inboundReady = inboundStagesCompleted(order, stage);
 
   if (nextProgress <= 2 && !outgoingAllowed) {
-    window.alert('Bu aşama yalnızca ilgili üretim fabrikası tarafından ilerletilebilir.');
+    window.alert('Bu aşama yalnızca ilgili fabrikanın ambar sorumlusu tarafından ilerletilebilir.');
     return;
   }
 
@@ -4027,7 +4075,7 @@ function advanceStage(orderId, stageId) {
   }
 
   if (nextProgress === 3 && !(incomingAllowed || canCompleteFromSource)) {
-    window.alert('Sevkiyat tamamlaması ilgili varış noktası tarafından onaylanmalıdır.');
+    window.alert('Sevkiyat tamamlaması ilgili varış ambar sorumlusu tarafından onaylanmalıdır.');
     return;
   }
 
@@ -4066,7 +4114,7 @@ function updateStageTerminFromForm(formData) {
   }
 
   if (!canManageOutgoingStage(stage)) {
-    window.alert('Termin güncellemesi yalnızca ilgili çıkış ambarı tarafından yapılabilir.');
+    window.alert('Termin güncellemesi yalnızca ilgili fabrikanın ambar sorumlusu tarafından yapılabilir.');
     return false;
   }
 
@@ -4145,7 +4193,7 @@ function editStageTermin(orderId, stageId) {
   }
 
   if (!canManageOutgoingStage(stage)) {
-    window.alert('Termin güncellemesi yalnızca ilgili çıkış ambarı tarafından yapılabilir.');
+    window.alert('Termin güncellemesi yalnızca ilgili fabrikanın ambar sorumlusu tarafından yapılabilir.');
     return;
   }
 
